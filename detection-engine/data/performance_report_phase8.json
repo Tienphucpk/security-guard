@@ -1,0 +1,55 @@
+{
+  "timestamp": "2026-10-25T09:08:50Z",
+  "environment": {
+    "os": "Windows 11",
+    "architecture": "AMD64",
+    "python_version": "3.13.13"
+  },
+  "dataset_evaluated": "holdout_dataset_unseen_v3.json",
+  "total_requests_measured": 160,
+  "completed_http_requests": 160,
+  "failed_http_requests": 0,
+  "timeout_http_requests": 0,
+  "error_rate_pct": 0.0,
+  "timeout_rate_pct": 0.0,
+  "total_duration_sec": 14.476,
+  "engine_throughput_rps": 11.05,
+  "latency_profiles": {
+    "rule_engine": {
+      "mean_ms": 0.494,
+      "p50_ms": 0.398,
+      "p95_ms": 0.929,
+      "p99_ms": 1.523,
+      "min_ms": 0.163,
+      "max_ms": 3.173
+    },
+    "ml_inference": {
+      "mean_ms": 80.153,
+      "p50_ms": 73.098,
+      "p95_ms": 110.344,
+      "p99_ms": 128.029,
+      "min_ms": 39.818,
+      "max_ms": 134.865
+    },
+    "detection_pipeline": {
+      "mean_ms": 80.647,
+      "p50_ms": 73.518,
+      "p95_ms": 110.922,
+      "p99_ms": 129.162,
+      "min_ms": 39.981,
+      "max_ms": 135.599
+    },
+    "end_to_end_http": {
+      "mean_ms": 9.571,
+      "p50_ms": 3.755,
+      "p95_ms": 28.129,
+      "p99_ms": 29.702,
+      "min_ms": 2.539,
+      "max_ms": 59.108
+    }
+  },
+  "memory_usage_mb": {
+    "allocated": 1.1,
+    "peak": 3.12
+  }
+}

@@ -1,0 +1,29 @@
+[
+  {
+    "timestamp": "2026-10-07T06:00:00.000Z",
+    "ip": "192.168.235.10",
+    "method": "GET",
+    "url": "/",
+    "statusCode": 200,
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) Firefox/115.0",
+    "responseTime": 15.2
+  },
+  {
+    "timestamp": "2026-10-07T06:00:05.000Z",
+    "ip": "192.168.235.10",
+    "method": "GET",
+    "url": "/login",
+    "statusCode": 200,
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) Firefox/115.0",
+    "responseTime": 18.0
+  },
+  {
+    "timestamp": "2026-10-07T06:00:10.000Z",
+    "ip": "192.168.235.10",
+    "method": "POST",
+    "url": "/login",
+    "statusCode": 200,
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) Firefox/115.0",
+    "responseTime": 25.4
+  }
+]

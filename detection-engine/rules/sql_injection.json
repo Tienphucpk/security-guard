@@ -1,0 +1,20 @@
+{
+  "rule_code": "RULE-SQLI-001",
+  "name": "SQL Injection Signature Detection",
+  "category": "sql_injection",
+  "enabled": true,
+  "patterns": [
+    "union select",
+    "union all select",
+    "' or '1'='1",
+    "' or 1=1",
+    "\" or \"1\"=\"1",
+    "information_schema.",
+    "sleep(",
+    "benchmark(",
+    "waitfor delay"
+  ],
+  "score": 80,
+  "severity": "HIGH",
+  "description": "SQL injection signatures detected in requested URL, query parameter, or payload"
+}

@@ -1,0 +1,19 @@
+{
+  "rule_code": "RULE-XSS-001",
+  "name": "Cross-Site Scripting (XSS) Detection",
+  "category": "xss",
+  "enabled": true,
+  "patterns": [
+    "<script>",
+    "</script>",
+    "onload=",
+    "onerror=",
+    "javascript:",
+    "<iframe",
+    "<svg",
+    "document.cookie"
+  ],
+  "score": 75,
+  "severity": "HIGH",
+  "description": "Cross-Site Scripting HTML/JS execution tags detected in request parameters"
+}

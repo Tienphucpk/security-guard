@@ -1,0 +1,18 @@
+{
+  "rule_code": "RULE-SCAN-001",
+  "name": "Security Scanner Detection",
+  "category": "scanner",
+  "enabled": true,
+  "signatures": [
+    "sqlmap",
+    "nikto",
+    "nmap",
+    "dirbuster",
+    "gobuster",
+    "wpscan",
+    "masscan"
+  ],
+  "score": 60,
+  "severity": "HIGH",
+  "description": "User-Agent or request characteristic matches automated vulnerability scanner"
+}

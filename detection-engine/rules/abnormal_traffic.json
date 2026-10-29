@@ -1,0 +1,11 @@
+{
+  "rule_code": "RULE-TRAFFIC-001",
+  "name": "Abnormal Traffic Rate Detection",
+  "category": "abnormal_traffic",
+  "enabled": true,
+  "threshold": 100,
+  "window_seconds": 60,
+  "score": 40,
+  "severity": "MEDIUM",
+  "description": "High frequency requests exceeding 100 requests per 60 seconds from a single IP"
+}

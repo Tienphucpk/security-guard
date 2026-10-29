@@ -1,0 +1,319 @@
+{
+  "evaluated_at": "2026-10-25T09:35:21Z",
+  "dataset_size": 80,
+  "label_distribution": {
+    "benign": 40,
+    "attack": 40
+  },
+  "configurations": {
+    "config_a_rule_only": {
+      "tp": 27,
+      "tn": 40,
+      "fp": 0,
+      "fn": 13,
+      "accuracy": 83.75,
+      "precision": 100.0,
+      "recall": 67.5,
+      "f1_score": 0.806,
+      "false_positive_rate": 0.0
+    },
+    "config_b_ml_only": {
+      "tp": 30,
+      "tn": 38,
+      "fp": 2,
+      "fn": 10,
+      "accuracy": 85.0,
+      "precision": 93.75,
+      "recall": 75.0,
+      "f1_score": 0.8333,
+      "false_positive_rate": 5.0
+    },
+    "config_c_hybrid": {
+      "tp": 37,
+      "tn": 38,
+      "fp": 2,
+      "fn": 3,
+      "accuracy": 93.75,
+      "precision": 94.87,
+      "recall": 92.5,
+      "f1_score": 0.9367,
+      "false_positive_rate": 5.0
+    }
+  },
+  "category_breakdown": {
+    "BENIGN": {
+      "total": 40,
+      "rule_detected": 0,
+      "ml_detected": 2,
+      "hybrid_detected": 2
+    },
+    "SQL_INJECTION": {
+      "total": 6,
+      "rule_detected": 3,
+      "ml_detected": 5,
+      "hybrid_detected": 6
+    },
+    "XSS": {
+      "total": 6,
+      "rule_detected": 6,
+      "ml_detected": 6,
+      "hybrid_detected": 6
+    },
+    "SCANNER_DETECTION": {
+      "total": 5,
+      "rule_detected": 3,
+      "ml_detected": 3,
+      "hybrid_detected": 4
+    },
+    "SUSPICIOUS_URL": {
+      "total": 6,
+      "rule_detected": 4,
+      "ml_detected": 3,
+      "hybrid_detected": 4
+    },
+    "PATH_TRAVERSAL": {
+      "total": 6,
+      "rule_detected": 6,
+      "ml_detected": 4,
+      "hybrid_detected": 6
+    },
+    "COMMAND_INJECTION": {
+      "total": 6,
+      "rule_detected": 5,
+      "ml_detected": 4,
+      "hybrid_detected": 6
+    },
+    "BRUTE_FORCE": {
+      "total": 3,
+      "rule_detected": 0,
+      "ml_detected": 3,
+      "hybrid_detected": 3
+    },
+    "ANOMALY_SUBTLE": {
+      "total": 2,
+      "rule_detected": 0,
+      "ml_detected": 2,
+      "hybrid_detected": 2
+    }
+  },
+  "discrepancies": {
+    "ml_false_positives_count": 2,
+    "ml_false_positives": [
+      {
+        "id": 7,
+        "url": "/assets/vendor/chartjs/chart.min.js",
+        "score": 60.12,
+        "raw_score": -0.0266
+      },
+      {
+        "id": 31,
+        "url": "/search?q=python+3.13+features+and+release+timeline",
+        "score": 60.39,
+        "raw_score": -0.0289
+      }
+    ],
+    "ml_additional_discoveries_count": 10,
+    "ml_additional_discoveries": [
+      {
+        "id": 42,
+        "category": "SQL_INJECTION",
+        "url": "/catalog/item?id=-1 OR 1=1--",
+        "ml_score": 65.1,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0681, threshold: -0.0256)"
+      },
+      {
+        "id": 44,
+        "category": "SQL_INJECTION",
+        "url": "/portal/invoices?year=2026'; DROP TABLE temp_logs;--",
+        "ml_score": 66.97,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0837, threshold: -0.0256)"
+      },
+      {
+        "id": 46,
+        "category": "SQL_INJECTION",
+        "url": "/login?user=admin'--",
+        "ml_score": 63.05,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0510, threshold: -0.0256)"
+      },
+      {
+        "id": 57,
+        "category": "SCANNER_DETECTION",
+        "url": "/wp-admin",
+        "ml_score": 65.26,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0694, threshold: -0.0256)"
+      },
+      {
+        "id": 75,
+        "category": "COMMAND_INJECTION",
+        "url": "/run?cmd=ping -c 1 127.0.0.1; powershell -c Get-Process",
+        "ml_score": 67.36,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0869, threshold: -0.0256)"
+      },
+      {
+        "id": 76,
+        "category": "BRUTE_FORCE",
+        "url": "/auth/signin",
+        "ml_score": 60.98,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0338, threshold: -0.0256)"
+      },
+      {
+        "id": 77,
+        "category": "BRUTE_FORCE",
+        "url": "/auth/signin",
+        "ml_score": 61.0,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0339, threshold: -0.0256)"
+      },
+      {
+        "id": 78,
+        "category": "BRUTE_FORCE",
+        "url": "/auth/signin",
+        "ml_score": 61.48,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0379, threshold: -0.0256)"
+      },
+      {
+        "id": 79,
+        "category": "ANOMALY_SUBTLE",
+        "url": "/api/query?payload=ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
+        "ml_score": 66.55,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0802, threshold: -0.0256)"
+      },
+      {
+        "id": 80,
+        "category": "ANOMALY_SUBTLE",
+        "url": "/search?filter=%FF%FE%00%00%DE%AD%BE%EF%CA%FE%BA%BE",
+        "ml_score": 62.02,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0424, threshold: -0.0256)"
+      }
+    ],
+    "rule_only_discoveries_count": 7,
+    "rule_only_discoveries": [
+      {
+        "id": 45,
+        "category": "SQL_INJECTION",
+        "url": "/search?q=shoes' OR 'a'='a",
+        "rule": [
+          "SQL_INJECTION"
+        ]
+      },
+      {
+        "id": 53,
+        "category": "SCANNER_DETECTION",
+        "url": "/catalog",
+        "rule": [
+          "SCANNER_DETECTION"
+        ]
+      },
+      {
+        "id": 63,
+        "category": "SUSPICIOUS_URL",
+        "url": "/web.config",
+        "rule": [
+          "SUSPICIOUS_URL"
+        ]
+      },
+      {
+        "id": 65,
+        "category": "PATH_TRAVERSAL",
+        "url": "/view?doc=..%2f..%2f..%2fwindows%2fwin.ini",
+        "rule": [
+          "PATH_TRAVERSAL"
+        ]
+      },
+      {
+        "id": 67,
+        "category": "PATH_TRAVERSAL",
+        "url": "/fetch?item=%2e%2e%2f%2e%2e%2fetc%2fshadow",
+        "rule": [
+          "PATH_TRAVERSAL"
+        ]
+      },
+      {
+        "id": 72,
+        "category": "COMMAND_INJECTION",
+        "url": "/system/diag?target=localhost&&net user",
+        "rule": [
+          "COMMAND_INJECTION"
+        ]
+      },
+      {
+        "id": 74,
+        "category": "COMMAND_INJECTION",
+        "url": "/diagnostics?test=`id`",
+        "rule": [
+          "COMMAND_INJECTION"
+        ]
+      }
+    ],
+    "missed_by_both_count": 3,
+    "missed_by_both": [
+      {
+        "id": 56,
+        "category": "SCANNER_DETECTION",
+        "url": "/portal/admin-auth"
+      },
+      {
+        "id": 61,
+        "category": "SUSPICIOUS_URL",
+        "url": "/backup.sql.gz"
+      },
+      {
+        "id": 62,
+        "category": "SUSPICIOUS_URL",
+        "url": "/.ssh/id_rsa"
+      }
+    ]
+  },
+  "alert_correlation": {
+    "raw_alerts_without_correlation": 60,
+    "correlated_alerts": 39,
+    "duplicates_suppressed": 21
+  },
+  "latencies": {
+    "rule_ms": {
+      "mean": 0.095,
+      "p50": 0.078,
+      "p95": 0.168,
+      "p99": 0.306
+    },
+    "ml_ms": {
+      "mean": 13.777,
+      "p50": 11.458,
+      "p95": 23.714,
+      "p99": 25.779
+    }
+  },
+  "ml_model_metadata": {
+    "model_version": "1.0.0",
+    "model_name": "IsolationForestAnomalyDetector",
+    "model_type": "IsolationForest",
+    "created_at": "2026-10-25T07:33:24.364114+00:00",
+    "feature_schema_version": "1.0",
+    "feature_names": [
+      "method_code",
+      "status_code",
+      "response_time_ms",
+      "url_length",
+      "query_length",
+      "special_char_count",
+      "suspicious_token_count",
+      "ua_length",
+      "path_depth",
+      "rolling_req_count_60s",
+      "rolling_failed_login_300s"
+    ],
+    "features_count": 11,
+    "hyperparameters": {
+      "n_estimators": 100,
+      "contamination": 0.03,
+      "random_state": 42
+    },
+    "training_sample_count": 1200,
+    "effective_threshold": -0.0256,
+    "baseline_metrics": {
+      "mean_decision_score": 0.1007,
+      "std_decision_score": 0.056,
+      "min_decision_score": -0.0347,
+      "max_decision_score": 0.1973
+    }
+  }
+}

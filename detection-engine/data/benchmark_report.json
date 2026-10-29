@@ -1,0 +1,341 @@
+{
+  "evaluated_at": "2026-10-25T07:33:33Z",
+  "dataset_size": 80,
+  "label_distribution": {
+    "benign": 40,
+    "attack": 40
+  },
+  "configurations": {
+    "config_a_rule_only": {
+      "tp": 28,
+      "tn": 40,
+      "fp": 0,
+      "fn": 12,
+      "accuracy": 85.0,
+      "precision": 100.0,
+      "recall": 70.0,
+      "f1_score": 0.8235,
+      "false_positive_rate": 0.0
+    },
+    "config_b_ml_only": {
+      "tp": 26,
+      "tn": 40,
+      "fp": 0,
+      "fn": 14,
+      "accuracy": 82.5,
+      "precision": 100.0,
+      "recall": 65.0,
+      "f1_score": 0.7879,
+      "false_positive_rate": 0.0
+    },
+    "config_c_hybrid": {
+      "tp": 38,
+      "tn": 40,
+      "fp": 0,
+      "fn": 2,
+      "accuracy": 97.5,
+      "precision": 100.0,
+      "recall": 95.0,
+      "f1_score": 0.9744,
+      "false_positive_rate": 0.0
+    }
+  },
+  "category_breakdown": {
+    "BENIGN": {
+      "total": 40,
+      "rule_detected": 0,
+      "ml_detected": 0,
+      "hybrid_detected": 0
+    },
+    "SQL_INJECTION": {
+      "total": 6,
+      "rule_detected": 3,
+      "ml_detected": 5,
+      "hybrid_detected": 6
+    },
+    "XSS": {
+      "total": 6,
+      "rule_detected": 6,
+      "ml_detected": 6,
+      "hybrid_detected": 6
+    },
+    "SCANNER_DETECTION": {
+      "total": 5,
+      "rule_detected": 4,
+      "ml_detected": 2,
+      "hybrid_detected": 4
+    },
+    "SUSPICIOUS_URL": {
+      "total": 6,
+      "rule_detected": 3,
+      "ml_detected": 4,
+      "hybrid_detected": 5
+    },
+    "PATH_TRAVERSAL": {
+      "total": 6,
+      "rule_detected": 6,
+      "ml_detected": 1,
+      "hybrid_detected": 6
+    },
+    "COMMAND_INJECTION": {
+      "total": 6,
+      "rule_detected": 6,
+      "ml_detected": 3,
+      "hybrid_detected": 6
+    },
+    "BRUTE_FORCE": {
+      "total": 3,
+      "rule_detected": 0,
+      "ml_detected": 3,
+      "hybrid_detected": 3
+    },
+    "ANOMALY_SUBTLE": {
+      "total": 2,
+      "rule_detected": 0,
+      "ml_detected": 2,
+      "hybrid_detected": 2
+    }
+  },
+  "discrepancies": {
+    "ml_false_positives_count": 0,
+    "ml_false_positives": [],
+    "ml_additional_discoveries_count": 10,
+    "ml_additional_discoveries": [
+      {
+        "id": "SMP-SQLI-003",
+        "category": "SQL_INJECTION",
+        "url": "/api/users?name=admin' AND 1=(SELECT COUNT(*) FROM tabusers);--",
+        "ml_score": 70.44,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.1126, threshold: -0.0256)"
+      },
+      {
+        "id": "SMP-SQLI-005",
+        "category": "SQL_INJECTION",
+        "url": "/profile?id=10; DROP TABLE audit_logs;--",
+        "ml_score": 64.51,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0632, threshold: -0.0256)"
+      },
+      {
+        "id": "SMP-SQLI-006",
+        "category": "SQL_INJECTION",
+        "url": "/products/query?code=P1'/*inline*/OR/*comment*/1=1#",
+        "ml_score": 69.49,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.1047, threshold: -0.0256)"
+      },
+      {
+        "id": "SMP-PROBE-003",
+        "category": "SUSPICIOUS_URL",
+        "url": "/wp-config.php.bak",
+        "ml_score": 65.13,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0684, threshold: -0.0256)"
+      },
+      {
+        "id": "SMP-PROBE-005",
+        "category": "SUSPICIOUS_URL",
+        "url": "/phpmyadmin/index.php",
+        "ml_score": 65.42,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0708, threshold: -0.0256)"
+      },
+      {
+        "id": "SMP-BF-001",
+        "category": "BRUTE_FORCE",
+        "url": "/login",
+        "ml_score": 61.37,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0370, threshold: -0.0256)"
+      },
+      {
+        "id": "SMP-BF-002",
+        "category": "BRUTE_FORCE",
+        "url": "/login",
+        "ml_score": 61.34,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0368, threshold: -0.0256)"
+      },
+      {
+        "id": "SMP-BF-003",
+        "category": "BRUTE_FORCE",
+        "url": "/login",
+        "ml_score": 61.29,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0363, threshold: -0.0256)"
+      },
+      {
+        "id": "SMP-SUBTLE-001",
+        "category": "ANOMALY_SUBTLE",
+        "url": "/api/query?param=ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
+        "ml_score": 66.55,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0802, threshold: -0.0256)"
+      },
+      {
+        "id": "SMP-SUBTLE-002",
+        "category": "ANOMALY_SUBTLE",
+        "url": "/api/upload?data=chunk",
+        "ml_score": 67.45,
+        "reason": "Statistical outlier detected in feature space (Decision score: -0.0876, threshold: -0.0256)"
+      }
+    ],
+    "rule_only_discoveries_count": 12,
+    "rule_only_discoveries": [
+      {
+        "id": "SMP-SQLI-001",
+        "category": "SQL_INJECTION",
+        "url": "/search?q=' OR '1'='1",
+        "rule": [
+          "SQL_INJECTION"
+        ]
+      },
+      {
+        "id": "SMP-SCAN-001",
+        "category": "SCANNER_DETECTION",
+        "url": "/search?q=test",
+        "rule": [
+          "SCANNER_DETECTION"
+        ]
+      },
+      {
+        "id": "SMP-SCAN-005",
+        "category": "SCANNER_DETECTION",
+        "url": "/login",
+        "rule": [
+          "SCANNER_DETECTION"
+        ]
+      },
+      {
+        "id": "SMP-TRAV-001",
+        "category": "PATH_TRAVERSAL",
+        "url": "/view?file=../../../../etc/passwd",
+        "rule": [
+          "PATH_TRAVERSAL"
+        ]
+      },
+      {
+        "id": "SMP-TRAV-002",
+        "category": "PATH_TRAVERSAL",
+        "url": "/download?path=..\\..\\windows\\win.ini",
+        "rule": [
+          "PATH_TRAVERSAL"
+        ]
+      },
+      {
+        "id": "SMP-TRAV-003",
+        "category": "PATH_TRAVERSAL",
+        "url": "/read?file=%2e%2e%2f%2e%2e%2fetc%2fshadow",
+        "rule": [
+          "PATH_TRAVERSAL"
+        ]
+      },
+      {
+        "id": "SMP-TRAV-004",
+        "category": "PATH_TRAVERSAL",
+        "url": "/document?name=..%2f..%2f..%2fboot.ini",
+        "rule": [
+          "PATH_TRAVERSAL"
+        ]
+      },
+      {
+        "id": "SMP-TRAV-006",
+        "category": "PATH_TRAVERSAL",
+        "url": "/load?doc=..%5c..%5cwindows%5csystem.ini",
+        "rule": [
+          "PATH_TRAVERSAL"
+        ]
+      },
+      {
+        "id": "SMP-CMDI-002",
+        "category": "COMMAND_INJECTION",
+        "url": "/api/dns?domain=google.com | id",
+        "rule": [
+          "COMMAND_INJECTION"
+        ]
+      },
+      {
+        "id": "SMP-CMDI-004",
+        "category": "COMMAND_INJECTION",
+        "url": "/service/status?target=`id`",
+        "rule": [
+          "COMMAND_INJECTION"
+        ]
+      },
+      {
+        "id": "SMP-CMDI-005",
+        "category": "COMMAND_INJECTION",
+        "url": "/export?name=$(uname -a)",
+        "rule": [
+          "COMMAND_INJECTION"
+        ]
+      },
+      {
+        "id": "SMP-PROBE-006",
+        "category": "SUSPICIOUS_URL",
+        "url": "/server-status",
+        "rule": [
+          "SUSPICIOUS_URL"
+        ]
+      }
+    ],
+    "missed_by_both_count": 2,
+    "missed_by_both": [
+      {
+        "id": "SMP-SCAN-004",
+        "category": "SCANNER_DETECTION",
+        "url": "/test"
+      },
+      {
+        "id": "SMP-PROBE-004",
+        "category": "SUSPICIOUS_URL",
+        "url": "/backup.sql"
+      }
+    ]
+  },
+  "alert_correlation": {
+    "raw_alerts_without_correlation": 55,
+    "correlated_alerts": 38,
+    "duplicates_suppressed": 17
+  },
+  "latencies": {
+    "rule_ms": {
+      "mean": 0.084,
+      "p50": 0.069,
+      "p95": 0.167,
+      "p99": 0.281
+    },
+    "ml_ms": {
+      "mean": 12.353,
+      "p50": 11.528,
+      "p95": 19.3,
+      "p99": 20.734
+    }
+  },
+  "ml_model_metadata": {
+    "model_version": "1.0.0",
+    "model_name": "IsolationForestAnomalyDetector",
+    "model_type": "IsolationForest",
+    "created_at": "2026-10-25T07:33:24.364114+00:00",
+    "feature_schema_version": "1.0",
+    "feature_names": [
+      "method_code",
+      "status_code",
+      "response_time_ms",
+      "url_length",
+      "query_length",
+      "special_char_count",
+      "suspicious_token_count",
+      "ua_length",
+      "path_depth",
+      "rolling_req_count_60s",
+      "rolling_failed_login_300s"
+    ],
+    "features_count": 11,
+    "hyperparameters": {
+      "n_estimators": 100,
+      "contamination": 0.03,
+      "random_state": 42
+    },
+    "training_sample_count": 1200,
+    "effective_threshold": -0.0256,
+    "baseline_metrics": {
+      "mean_decision_score": 0.1007,
+      "std_decision_score": 0.056,
+      "min_decision_score": -0.0347,
+      "max_decision_score": 0.1973
+    }
+  }
+}

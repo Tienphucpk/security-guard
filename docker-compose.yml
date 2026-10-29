@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  # Database Layer (PostgreSQL)
+  database:
+    image: postgres:16-alpine
+    container_name: security-guard-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-security_guard}
+      POSTGRES_USER: ${DATABASE_USER:-security_guard}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-change_me}
+    ports:
+      - "${DATABASE_PORT:-5432}:5432"
+    volumes:
+      - ./database/schema:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-security_guard} -d ${DATABASE_NAME:-security_guard}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - security-guard-net
+
+  # Detection Engine Service (Python / FastAPI)
+  detection-engine:
+    build:
+      context: ./detection-engine
+      dockerfile: Dockerfile
+    container_name: security-guard-detection-engine
+    restart: unless-stopped
+    ports:
+      - "${DETECTION_ENGINE_PORT:-5000}:5000"
+    environment:
+      - PORT=5000
+      - HOST=0.0.0.0
+      - DATABASE_HOST=database
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=${DATABASE_NAME:-security_guard}
+      - DATABASE_USER=${DATABASE_USER:-security_guard}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-change_me}
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - security-guard-net
+
+  # Web Application (Node.js / Express)
+  web-app:
+    build:
+      context: ./web-app
+      dockerfile: Dockerfile
+    container_name: security-guard-web-app
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - WEB_PORT=3000
+      - DETECTION_ENGINE_URL=http://detection-engine:5000
+      - DATABASE_HOST=database
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=${DATABASE_NAME:-security_guard}
+      - DATABASE_USER=${DATABASE_USER:-security_guard}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-change_me}
+    volumes:
+      - ./web-app/logs:/app/logs
+    depends_on:
+      database:
+        condition: service_healthy
+      detection-engine:
+        condition: service_started
+    networks:
+      - security-guard-net
+
+  # Dashboard (React / Vite Frontend)
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: security-guard-dashboard
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-5173}:5173"
+    environment:
+      - VITE_API_URL=http://web-app:3000
+      - VITE_ENGINE_URL=http://detection-engine:5000
+    depends_on:
+      - web-app
+      - detection-engine
+    networks:
+      - security-guard-net
+
+networks:
+  security-guard-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+    driver: local

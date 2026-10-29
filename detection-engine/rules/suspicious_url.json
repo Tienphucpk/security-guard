@@ -1,0 +1,20 @@
+{
+  "rule_code": "RULE-URL-001",
+  "name": "Suspicious URL and Sensitive Probe Detection",
+  "category": "suspicious_url",
+  "enabled": true,
+  "patterns": [
+    "/.env",
+    "/.git/head",
+    "/.git/config",
+    "/wp-login.php",
+    "/web.config",
+    "/config.php",
+    "/phpinfo.php",
+    "/.ds_store",
+    "/server-status"
+  ],
+  "score": 35,
+  "severity": "MEDIUM",
+  "description": "Request targets known sensitive environment files, git metadata, or admin panels"
+}

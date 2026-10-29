@@ -1,0 +1,25 @@
+{
+  "rule_code": "RULE-TRAV-001",
+  "name": "Path Traversal & Directory Climbing Detection",
+  "category": "path_traversal",
+  "enabled": true,
+  "patterns": [
+    "../",
+    "..\\",
+    "%2e%2e%2f",
+    "%2e%2e/",
+    "..%2f",
+    "%2e%2e%5c",
+    "..%5c",
+    "/etc/passwd",
+    "/etc/shadow",
+    "/etc/hosts",
+    "windows/win.ini",
+    "windows\\win.ini",
+    "boot.ini",
+    "system.ini"
+  ],
+  "score": 75,
+  "severity": "HIGH",
+  "description": "Directory traversal or local file inclusion patterns detected in URL path, query string, or payload"
+}

@@ -1,0 +1,26 @@
+{
+  "rule_code": "RULE-CMDI-001",
+  "name": "OS Command Injection & Remote Code Execution Detection",
+  "category": "command_injection",
+  "enabled": true,
+  "patterns": [
+    "; whoami",
+    "; id",
+    "; cat ",
+    "; uname",
+    "| whoami",
+    "| id",
+    "| cat ",
+    "&& whoami",
+    "&& id",
+    "&& cat ",
+    "powershell -enc",
+    "powershell.exe",
+    "cmd.exe /c",
+    "/bin/bash",
+    "/bin/sh"
+  ],
+  "score": 85,
+  "severity": "CRITICAL",
+  "description": "OS command injection or shell command substitution detected in query parameters or payload"
+}

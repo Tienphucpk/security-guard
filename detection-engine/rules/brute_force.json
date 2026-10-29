@@ -1,0 +1,13 @@
+{
+  "rule_code": "RULE-BF-001",
+  "name": "Brute Force Login Detection",
+  "category": "brute_force",
+  "enabled": true,
+  "threshold": 5,
+  "window_seconds": 300,
+  "target_path": "/login",
+  "failure_status_codes": [401],
+  "score": 70,
+  "severity": "HIGH",
+  "description": "Multiple failed login attempts from the same IP within 5 minutes"
+}
