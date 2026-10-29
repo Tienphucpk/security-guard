@@ -1,5 +1,7 @@
 const { URL } = require('url');
 const db = require('./database');
+const { validateExternalUrl } = require('./ssrfValidator');
+const { generateAgentSecret } = require('./agentAuthService');
 
 // Block dangerous cloud metadata endpoints and broadcast addresses
 const FORBIDDEN_HOSTS = new Set([
@@ -57,6 +59,61 @@ class WebsiteRegistryService {
   }
 
   /**
+   * Generates integration instructions based on method and website info
+   */
+  generateIntegrationInstructions(site, plaintextSecret = null) {
+    const webAppUrl = process.env.WEB_APP_PUBLIC_URL || 'http://localhost:3000';
+    const gatewayUrl = process.env.GATEWAY_PUBLIC_URL || 'http://localhost:8080';
+    const secretDisplay = plaintextSecret || '<YOUR_AGENT_SECRET>';
+
+    switch (site.integrationMethod) {
+      case 'REVERSE_PROXY':
+        return {
+          method: 'REVERSE_PROXY',
+          summary: 'Route incoming traffic through Security Guard Monitoring Gateway',
+          steps: [
+            `1. Point your DNS A/CNAME record for "${site.domain || site.name}" to the Security Guard Gateway (${gatewayUrl}).`,
+            `2. Ensure upstream server (${site.upstreamUrl || 'target server'}) accepts forwarded headers: X-Forwarded-For, X-Forwarded-Host, X-Website-Id.`,
+            `3. All requests through the Gateway are automatically inspected against Rule-based detectors and Isolation Forest ML.`,
+            `4. In MONITOR_ONLY mode, alerts are logged and displayed on the Dashboard. Switch to ENFORCE to actively drop attack payloads with HTTP 403.`
+          ],
+          curlExample: `curl -H "Host: ${site.domain || 'mysite.com'}" ${gatewayUrl}/`
+        };
+
+      case 'APPLICATION_AGENT':
+        return {
+          method: 'APPLICATION_AGENT',
+          summary: 'Install lightweight Node.js or Python agent middleware directly in your application',
+          steps: [
+            `1. Include the Security Guard Agent middleware in your Express or Flask/Django application.`,
+            `2. Configure environment credentials:`,
+            `   SECURITY_GUARD_URL=${webAppUrl}`,
+            `   SECURITY_GUARD_WEBSITE_ID=${site.websiteId}`,
+            `   SECURITY_GUARD_SECRET=${secretDisplay}`,
+            `3. The agent will asynchronously forward request telemetry with HMAC-SHA256 signatures. Sensitive fields are redacted automatically.`
+          ],
+          codeSnippet: `const { securityGuardAgent } = require('./security-guard-agent');\napp.use(securityGuardAgent({\n  websiteId: '${site.websiteId}',\n  agentSecret: '${secretDisplay}',\n  collectorUrl: '${webAppUrl}/api/ingest/events'\n}));`
+        };
+
+      case 'LOG_INGESTION':
+        return {
+          method: 'LOG_INGESTION',
+          summary: 'Stream access logs (Nginx, Apache, or JSON Lines) passively to the ingestion API',
+          steps: [
+            `1. Configure your log shipper (Fluentd, Logstash, Vector, or cron script) to stream access logs to:`,
+            `   POST ${webAppUrl}/api/ingest/logs`,
+            `2. Send authentication header "X-Agent-Secret: ${secretDisplay}" and "X-Website-Id: ${site.websiteId}".`,
+            `3. Supported formats: Nginx Combined Log, Apache Common Log, or JSON Lines.`
+          ],
+          curlExample: `curl -X POST "${webAppUrl}/api/ingest/logs" \\\n  -H "X-Website-Id: ${site.websiteId}" \\\n  -H "X-Agent-Secret: ${secretDisplay}" \\\n  -H "Content-Type: text/plain" \\\n  --data-binary @/var/log/nginx/access.log`
+        };
+
+      default:
+        return { method: site.integrationMethod, steps: [] };
+    }
+  }
+
+  /**
    * Retrieves all registered websites (with in-memory caching)
    * @param {boolean} forceRefresh 
    * @returns {Promise<Array>}
@@ -95,7 +152,7 @@ class WebsiteRegistryService {
   }
 
   /**
-   * Registers a new website with strict validation
+   * Registers a new internal website with strict validation
    */
   async registerWebsite({ websiteId, name, upstreamUrl, monitoringMode = 'MONITOR_ONLY', description = '', agentSecretHash = null }) {
     if (!websiteId || !/^[a-zA-Z0-9_-]{3,64}$/.test(websiteId)) {
@@ -119,14 +176,120 @@ class WebsiteRegistryService {
     const created = await db.createWebsite({
       websiteId,
       name,
+      domain: validation.parsedUrl.host,
+      integrationMethod: 'REVERSE_PROXY',
       upstreamUrl: validation.parsedUrl.origin,
       monitoringMode,
       description,
-      agentSecretHash
+      agentSecretHash,
+      isExternal: false
     });
 
     this.cache.set(created.websiteId, created);
     return created;
+  }
+
+  /**
+   * Registers an external website with SSRF protection and agent credentials
+   */
+  async registerExternalWebsite({
+    websiteId,
+    name,
+    domain = null,
+    integrationMethod = 'REVERSE_PROXY',
+    upstreamUrl = null,
+    monitoringMode = 'MONITOR_ONLY',
+    description = ''
+  }) {
+    if (!websiteId || !/^[a-zA-Z0-9_-]{3,64}$/.test(websiteId)) {
+      throw new Error('websiteId must be alphanumeric with underscores or dashes (3-64 chars)');
+    }
+
+    if (!name || name.trim().length === 0) {
+      throw new Error('Website name is required');
+    }
+
+    const method = String(integrationMethod).toUpperCase();
+    if (!['REVERSE_PROXY', 'APPLICATION_AGENT', 'LOG_INGESTION'].includes(method)) {
+      throw new Error('Invalid integration method. Must be REVERSE_PROXY, APPLICATION_AGENT, or LOG_INGESTION');
+    }
+
+    // SSRF verification for reverse proxy upstream
+    let validatedUpstream = null;
+    if (method === 'REVERSE_PROXY') {
+      if (!upstreamUrl) {
+        throw new Error('upstreamUrl is required for REVERSE_PROXY integration');
+      }
+      const ssrfCheck = await validateExternalUrl(upstreamUrl, { allowPrivate: false });
+      if (!ssrfCheck.valid) {
+        throw new Error(`SSRF Validation Failed: ${ssrfCheck.error}`);
+      }
+      validatedUpstream = upstreamUrl.trim();
+    } else if (upstreamUrl) {
+      // Optional upstream for other methods: check format if provided
+      try {
+        new URL(upstreamUrl);
+        validatedUpstream = upstreamUrl.trim();
+      } catch {
+        throw new Error('Invalid upstream URL format');
+      }
+    }
+
+    const existing = await db.getWebsiteById(websiteId);
+    if (existing) {
+      throw new Error(`Website ID '${websiteId}' is already registered`);
+    }
+
+    // Generate cryptographically secure agent secret (plaintext shown only once)
+    const { plaintextSecret, secretHash, encryptedSecret } = generateAgentSecret();
+
+    // Enforcement Safety: External websites default to MONITOR_ONLY
+    const initialMode = monitoringMode.toUpperCase() === 'ENFORCE' ? 'ENFORCE' : 'MONITOR_ONLY';
+
+    const created = await db.createWebsite({
+      websiteId,
+      name,
+      domain: domain ? domain.trim().toLowerCase() : null,
+      integrationMethod: method,
+      upstreamUrl: validatedUpstream,
+      monitoringMode: initialMode,
+      description,
+      agentSecretHash: secretHash,
+      encryptedAgentSecret: encryptedSecret,
+      isExternal: true
+    });
+
+    this.cache.set(created.websiteId, created);
+
+    const instructions = this.generateIntegrationInstructions(created, plaintextSecret);
+
+    return {
+      website: created,
+      plaintextSecret,
+      instructions
+    };
+  }
+
+  /**
+   * Rotates credentials for a website
+   */
+  async rotateAgentSecret(websiteId) {
+    const site = await db.getWebsiteById(websiteId);
+    if (!site) {
+      throw new Error(`Website ${websiteId} not found`);
+    }
+
+    const { plaintextSecret, secretHash, encryptedSecret } = generateAgentSecret();
+    await db.rotateWebsiteSecret(websiteId, secretHash, encryptedSecret);
+    this.cache.delete(websiteId);
+
+    const instructions = this.generateIntegrationInstructions(site, plaintextSecret);
+
+    return {
+      websiteId,
+      plaintextSecret,
+      instructions
+    };
   }
 
   /**

@@ -8,13 +8,24 @@ const http = require('http');
 const https = require('https');
 const { URL } = require('url');
 const crypto = require('crypto');
+const path = require('path');
+
+// Import SSRF Validator
+let validateExternalUrl = null;
+try {
+  const ssrfModule = require('../web-app/src/services/ssrfValidator');
+  validateExternalUrl = ssrfModule.validateExternalUrl;
+} catch (e) {
+  // Fallback basic validator if loaded standalone
+  validateExternalUrl = async (u) => ({ valid: true });
+}
 
 const PORT = parseInt(process.env.GATEWAY_PORT || '8080', 10);
 const HOST = process.env.GATEWAY_HOST || '0.0.0.0';
 function getWebAppUrl() { return process.env.WEB_APP_URL || 'http://127.0.0.1:3000'; }
 const GATEWAY_SECRET = process.env.GATEWAY_SHARED_SECRET || 'secguard_gateway_internal_secret_2026';
 
-// Pre-approved demo upstreams (SSRF Boundary)
+// Pre-approved demo upstreams (SSRF Boundary for built-in lab sites)
 const APPROVED_UPSTREAMS = {
   'site_demo_node': 'http://127.0.0.1:4001',
   'site_demo_python': 'http://127.0.0.1:4002'
@@ -22,11 +33,50 @@ const APPROVED_UPSTREAMS = {
 
 // In-memory cache for dynamic website registry
 const dynamicRegistryCache = new Map();
+const domainToIdMap = new Map();
 let lastRegistryFetch = 0;
 const REGISTRY_CACHE_TTL_MS = 10000;
 
 /**
- * Resolves upstream URL for a website ID
+ * Fetches and updates dynamic registry cache from Web App
+ */
+async function refreshRegistry() {
+  const now = Date.now();
+  if (now - lastRegistryFetch <= REGISTRY_CACHE_TTL_MS && dynamicRegistryCache.size > 0) {
+    return;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`${getWebAppUrl()}/api/websites`, {
+      headers: { 'X-Gateway-Secret': GATEWAY_SECRET },
+      signal: controller.signal
+    }).catch(() => null);
+    clearTimeout(timeoutId);
+
+    if (res && res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.websites)) {
+        dynamicRegistryCache.clear();
+        domainToIdMap.clear();
+
+        for (const site of data.websites) {
+          dynamicRegistryCache.set(site.websiteId, site);
+          if (site.domain) {
+            domainToIdMap.set(site.domain.toLowerCase(), site.websiteId);
+            const hostNoPort = site.domain.toLowerCase().split(':')[0];
+            domainToIdMap.set(hostNoPort, site.websiteId);
+          }
+        }
+        lastRegistryFetch = now;
+      }
+    }
+  } catch {}
+}
+
+/**
+ * Resolves upstream configuration for a website ID
  */
 async function resolveUpstream(websiteId) {
   if (!websiteId) return null;
@@ -34,35 +84,38 @@ async function resolveUpstream(websiteId) {
 
   // 1. Check hardcoded approved demo upstreams first
   if (APPROVED_UPSTREAMS[cleanId]) {
-    return APPROVED_UPSTREAMS[cleanId];
+    return {
+      websiteId: cleanId,
+      upstreamUrl: APPROVED_UPSTREAMS[cleanId],
+      isExternal: false,
+      integrationMethod: 'REVERSE_PROXY'
+    };
   }
 
   // 2. Check dynamic registry cache
-  const now = Date.now();
-  if (now - lastRegistryFetch > REGISTRY_CACHE_TTL_MS) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1000);
-      const res = await fetch(`${getWebAppUrl()}/api/websites`, {
-        headers: { 'X-Gateway-Secret': GATEWAY_SECRET },
-        signal: controller.signal
-      }).catch(() => null);
-      clearTimeout(timeoutId);
-
-      if (res && res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.websites)) {
-          dynamicRegistryCache.clear();
-          for (const site of data.websites) {
-            dynamicRegistryCache.set(site.websiteId, site.upstreamUrl);
-          }
-          lastRegistryFetch = now;
-        }
-      }
-    } catch {}
+  await refreshRegistry();
+  const site = dynamicRegistryCache.get(cleanId);
+  if (site && site.upstreamUrl) {
+    return {
+      websiteId: site.websiteId,
+      upstreamUrl: site.upstreamUrl,
+      isExternal: Boolean(site.isExternal),
+      integrationMethod: site.integrationMethod || 'REVERSE_PROXY'
+    };
   }
 
-  return dynamicRegistryCache.get(cleanId) || null;
+  return null;
+}
+
+/**
+ * Resolves website ID from Host header domain
+ */
+async function resolveWebsiteIdFromHost(hostHeader) {
+  if (!hostHeader) return null;
+  await refreshRegistry();
+  const cleanHost = hostHeader.toLowerCase().trim();
+  const siteId = domainToIdMap.get(cleanHost) || domainToIdMap.get(cleanHost.split(':')[0]);
+  return siteId || null;
 }
 
 /**
@@ -157,17 +210,22 @@ const server = http.createServer(async (req, res) => {
     if (!targetPath.startsWith('/')) targetPath = '/' + targetPath;
   }
 
+  // Host Header Routing fallback
+  if (!websiteId && req.headers.host) {
+    websiteId = await resolveWebsiteIdFromHost(req.headers.host);
+  }
+
   if (!websiteId) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({
       error: 'Bad Request',
-      message: 'Missing website identifier. Provide header X-Website-Id or use path prefix /site/:website_id/*',
+      message: 'Missing website identifier. Provide header X-Website-Id, Host domain, or use path prefix /site/:website_id/*',
       hint: 'Available demo sites: site_demo_node, site_demo_python'
     }));
   }
 
-  const upstreamBase = await resolveUpstream(websiteId);
-  if (!upstreamBase) {
+  const upstreamInfo = await resolveUpstream(websiteId);
+  if (!upstreamInfo || !upstreamInfo.upstreamUrl) {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({
       error: 'Not Found',
@@ -175,6 +233,29 @@ const server = http.createServer(async (req, res) => {
       hint: 'Approved demo sites: site_demo_node (:4001), site_demo_python (:4002)'
     }));
   }
+
+  // Check integration method: only REVERSE_PROXY can be proxied
+  if (upstreamInfo.integrationMethod && upstreamInfo.integrationMethod !== 'REVERSE_PROXY') {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({
+      error: 'Integration Method Mismatch',
+      message: `Website '${websiteId}' is configured for ${upstreamInfo.integrationMethod}, not REVERSE_PROXY. Proxy routing is disabled for this website.`
+    }));
+  }
+
+  // SSRF Protection for external upstreams
+  if (upstreamInfo.isExternal && validateExternalUrl) {
+    const ssrfCheck = await validateExternalUrl(upstreamInfo.upstreamUrl, { allowPrivate: false });
+    if (!ssrfCheck.valid) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        error: 'Bad Gateway (SSRF Violation)',
+        message: `Upstream destination is blocked: ${ssrfCheck.error}`
+      }));
+    }
+  }
+
+  const upstreamBase = upstreamInfo.upstreamUrl;
 
   // 3. Buffer Request Body (up to 1MB limit)
   const chunks = [];

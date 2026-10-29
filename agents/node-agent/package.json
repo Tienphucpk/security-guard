@@ -1,0 +1,17 @@
+{
+  "name": "@security-guard/node-agent",
+  "version": "1.0.0",
+  "description": "Security Guard Application Monitoring Agent for Node.js Express",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "keywords": [
+    "security",
+    "waf",
+    "monitoring",
+    "anomaly-detection"
+  ],
+  "author": "Security Guard Team",
+  "license": "ISC"
+}

@@ -54,10 +54,14 @@ router.patch('/users/:id/role', requireAuth, requireRole(['ADMIN']), userControl
 // Gateway Agent-authenticated APIs
 router.post('/monitoring/decision', requireAgentAuth, monitoringController.makeDecision);
 router.post('/ingest/events', requireAgentAuth, monitoringController.ingestEvents);
+router.post('/ingest/logs', requireAgentAuth, monitoringController.ingestLogs);
 
 // Website Registry & Management APIs (RBAC: ADMIN full, ANALYST read-only)
 router.get('/websites', requireAuth, requireRole(['ADMIN', 'ANALYST']), monitoringController.listWebsites);
 router.post('/websites', requireAuth, requireRole(['ADMIN']), monitoringController.registerWebsite);
+router.post('/websites/external', requireAuth, requireRole(['ADMIN']), monitoringController.registerExternalWebsite);
+router.post('/websites/:id/rotate-secret', requireAuth, requireRole(['ADMIN']), monitoringController.rotateSecret);
+router.post('/websites/:id/verify', requireAuth, requireRole(['ADMIN', 'ANALYST']), monitoringController.verifyWebsiteHealth);
 router.patch('/websites/:id', requireAuth, requireRole(['ADMIN']), monitoringController.updateWebsite);
 router.get('/websites/audit', requireAuth, requireRole(['ADMIN', 'ANALYST']), monitoringController.listAudit);
 router.get('/websites/:id/policies', requireAuth, requireRole(['ADMIN', 'ANALYST']), monitoringController.listPolicies);

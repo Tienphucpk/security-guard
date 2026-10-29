@@ -805,9 +805,16 @@ class DatabaseService {
         id,
         website_id AS "websiteId",
         name,
+        domain,
+        integration_method AS "integrationMethod",
         upstream_url AS "upstreamUrl",
         monitoring_mode AS "monitoringMode",
         is_active AS "isActive",
+        is_external AS "isExternal",
+        health_status AS "healthStatus",
+        last_health_check AS "lastHealthCheck",
+        health_diagnostic AS "healthDiagnostic",
+        last_event_at AS "lastEventAt",
         description,
         created_at AS "createdAt",
         updated_at AS "updatedAt"
@@ -830,10 +837,18 @@ class DatabaseService {
         id,
         website_id AS "websiteId",
         name,
+        domain,
+        integration_method AS "integrationMethod",
         upstream_url AS "upstreamUrl",
         monitoring_mode AS "monitoringMode",
         is_active AS "isActive",
+        is_external AS "isExternal",
+        health_status AS "healthStatus",
+        last_health_check AS "lastHealthCheck",
+        health_diagnostic AS "healthDiagnostic",
+        last_event_at AS "lastEventAt",
         agent_secret_hash AS "agentSecretHash",
+        encrypted_agent_secret AS "encryptedAgentSecret",
         description,
         created_at AS "createdAt",
         updated_at AS "updatedAt"
@@ -846,33 +861,140 @@ class DatabaseService {
   }
 
   /**
+   * Retrieves a specific monitored website by its domain/hostname
+   * @param {string} domain
+   * @returns {Promise<Object|null>}
+   */
+  async getWebsiteByDomain(domain) {
+    if (!domain) return null;
+    const query = `
+      SELECT 
+        id,
+        website_id AS "websiteId",
+        name,
+        domain,
+        integration_method AS "integrationMethod",
+        upstream_url AS "upstreamUrl",
+        monitoring_mode AS "monitoringMode",
+        is_active AS "isActive",
+        is_external AS "isExternal",
+        health_status AS "healthStatus",
+        last_health_check AS "lastHealthCheck",
+        health_diagnostic AS "healthDiagnostic",
+        last_event_at AS "lastEventAt",
+        agent_secret_hash AS "agentSecretHash",
+        encrypted_agent_secret AS "encryptedAgentSecret",
+        description,
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+      FROM monitored_websites
+      WHERE domain = $1 OR domain = $2
+      LIMIT 1;
+    `;
+    const cleanDomain = String(domain).trim().toLowerCase();
+    const domainWithoutPort = cleanDomain.split(':')[0];
+    const res = await this.pool.query(query, [cleanDomain, domainWithoutPort]);
+    this.isConnected = true;
+    return res.rows[0] || null;
+  }
+
+  /**
    * Registers a new monitored website
    */
-  async createWebsite({ websiteId, name, upstreamUrl, monitoringMode = 'MONITOR_ONLY', description = '', agentSecretHash = null }) {
+  async createWebsite({ 
+    websiteId, 
+    name, 
+    domain = null, 
+    integrationMethod = 'REVERSE_PROXY', 
+    upstreamUrl = null, 
+    monitoringMode = 'MONITOR_ONLY', 
+    description = '', 
+    agentSecretHash = null,
+    encryptedAgentSecret = null,
+    isExternal = false
+  }) {
     const query = `
       INSERT INTO monitored_websites (
         website_id,
         name,
+        domain,
+        integration_method,
         upstream_url,
         monitoring_mode,
         is_active,
+        is_external,
         agent_secret_hash,
+        encrypted_agent_secret,
+        health_status,
         description
       )
-      VALUES ($1, $2, $3, $4, TRUE, $5, $6)
-      RETURNING id, website_id AS "websiteId", name, upstream_url AS "upstreamUrl",
-                monitoring_mode AS "monitoringMode", is_active AS "isActive", description, created_at AS "createdAt";
+      VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8, $9, 'UNKNOWN', $10)
+      RETURNING id, website_id AS "websiteId", name, domain, integration_method AS "integrationMethod",
+                upstream_url AS "upstreamUrl", monitoring_mode AS "monitoringMode", is_active AS "isActive", 
+                is_external AS "isExternal", health_status AS "healthStatus", description, created_at AS "createdAt";
     `;
     const res = await this.pool.query(query, [
       String(websiteId).trim(),
       String(name).trim(),
-      String(upstreamUrl).trim(),
-      monitoringMode.toUpperCase() === 'ENFORCE' ? 'ENFORCE' : 'MONITOR_ONLY',
+      domain ? String(domain).trim().toLowerCase() : null,
+      ['REVERSE_PROXY', 'APPLICATION_AGENT', 'LOG_INGESTION'].includes(String(integrationMethod).toUpperCase()) 
+        ? String(integrationMethod).toUpperCase() 
+        : 'REVERSE_PROXY',
+      upstreamUrl ? String(upstreamUrl).trim() : null,
+      monitoringMode && String(monitoringMode).toUpperCase() === 'ENFORCE' ? 'ENFORCE' : 'MONITOR_ONLY',
+      Boolean(isExternal),
       agentSecretHash,
+      encryptedAgentSecret,
       description
     ]);
     this.isConnected = true;
     return res.rows[0];
+  }
+
+  /**
+   * Updates health status and diagnostic message
+   */
+  async updateWebsiteHealth(websiteId, healthStatus, diagnostic = null) {
+    const query = `
+      UPDATE monitored_websites
+      SET health_status = $1, health_diagnostic = $2, last_health_check = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE website_id = $3
+      RETURNING id, website_id AS "websiteId", health_status AS "healthStatus", health_diagnostic AS "healthDiagnostic", last_health_check AS "lastHealthCheck";
+    `;
+    const res = await this.pool.query(query, [
+      String(healthStatus).toUpperCase(),
+      diagnostic ? String(diagnostic) : null,
+      String(websiteId).trim()
+    ]);
+    this.isConnected = true;
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Updates last event timestamp for a website when telemetry/log arrives
+   */
+  async updateWebsiteLastEvent(websiteId) {
+    const query = `
+      UPDATE monitored_websites
+      SET last_event_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE website_id = $1;
+    `;
+    await this.pool.query(query, [String(websiteId).trim()]).catch(() => {});
+  }
+
+  /**
+   * Rotates agent credentials for a website
+   */
+  async rotateWebsiteSecret(websiteId, agentSecretHash, encryptedAgentSecret) {
+    const query = `
+      UPDATE monitored_websites
+      SET agent_secret_hash = $1, encrypted_agent_secret = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE website_id = $3
+      RETURNING id, website_id AS "websiteId", updated_at AS "updatedAt";
+    `;
+    const res = await this.pool.query(query, [agentSecretHash, encryptedAgentSecret, String(websiteId).trim()]);
+    this.isConnected = true;
+    return res.rows[0] || null;
   }
 
   /**

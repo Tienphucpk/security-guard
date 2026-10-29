@@ -1,9 +1,13 @@
 const { v4: uuidv4 } = require('crypto');
+const http = require('http');
+const https = require('https');
 const db = require('../services/database');
 const registry = require('../services/websiteRegistry');
 const policyEngine = require('../services/policyEngine');
 const detectionClient = require('../services/detectionClient');
 const alertStream = require('../services/alertStream');
+const { parseIngestionLogs } = require('../services/logParser');
+const { validateExternalUrl } = require('../services/ssrfValidator');
 
 const SENSITIVE_KEYS = new Set([
   'password', 'pass', 'pwd', 'token', 'access_token', 'refresh_token',
@@ -194,7 +198,11 @@ class MonitoringController {
       console.warn('[INGEST DB WARN]', err.message);
     }
 
-    // 2. Forward to Detection Pipeline if request was forwarded (not blocked)
+    // 2. Update website telemetry and health status in background
+    db.updateWebsiteLastEvent(website.websiteId).catch(() => {});
+    db.updateWebsiteHealth(website.websiteId, 'HEALTHY', 'Active agent telemetry received').catch(() => {});
+
+    // 3. Forward to Detection Pipeline if request was forwarded (not blocked)
     if (!isBlocked) {
       detectionClient.forwardLog({
         ...logEntry,
@@ -203,7 +211,7 @@ class MonitoringController {
       }).catch(() => {});
     }
 
-    // 3. Broadcast real-time SSE event for dashboard
+    // 4. Broadcast real-time SSE event for dashboard
     alertStream.broadcast('website_event', {
       eventId,
       requestId: body.request_id || body.requestId,
@@ -227,6 +235,82 @@ class MonitoringController {
   }
 
   /**
+   * Passive log ingestion (Combined / Common / JSON lines)
+   * POST /api/ingest/logs
+   */
+  async ingestLogs(req, res) {
+    const websiteId = req.headers['x-website-id'] || req.query.website_id || req.body?.websiteId;
+    if (!websiteId) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'Bad Request',
+        message: 'Missing required header X-Website-Id or parameter website_id'
+      });
+    }
+
+    const website = await registry.getWebsite(websiteId);
+    if (!website) {
+      return res.status(404).json({
+        status: 'error',
+        error: 'Not Found',
+        message: `Website '${websiteId}' is not registered`
+      });
+    }
+
+    const rawData = typeof req.body === 'string' ? req.body : (req.body?.logs || req.body);
+    const parsedResult = parseIngestionLogs(rawData, website.websiteId, { maxEntries: 1000 });
+
+    if (parsedResult.parsedCount === 0 && parsedResult.totalReceived > 0) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'Unparseable logs',
+        message: 'Could not parse any log lines. Ensure format is Nginx Combined, Apache Common, or JSON Lines.',
+        details: parsedResult.errors
+      });
+    }
+
+    // Insert entries into request_logs & forward to detection engine
+    let insertedCount = 0;
+    for (const entry of parsedResult.entries) {
+      try {
+        const dbRes = await db.insertRequestLog(entry);
+        insertedCount++;
+        // Asynchronously forward to python detection engine
+        detectionClient.forwardLog({
+          ...entry,
+          id: dbRes?.id,
+          websiteId: website.websiteId
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('[LOG INGEST DB WARN]', err.message);
+      }
+    }
+
+    // Update telemetry timestamp & health
+    await db.updateWebsiteLastEvent(website.websiteId);
+    await db.updateWebsiteHealth(website.websiteId, 'HEALTHY', `Ingested ${insertedCount} log entries passively`);
+
+    // Broadcast SSE update for dashboard
+    alertStream.broadcast('website_logs_ingested', {
+      websiteId: website.websiteId,
+      websiteName: website.name,
+      ingestedCount: insertedCount,
+      timestamp: new Date().toISOString()
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      websiteId: website.websiteId,
+      totalReceived: parsedResult.totalReceived,
+      parsedCount: parsedResult.parsedCount,
+      insertedCount,
+      duplicatesSkipped: parsedResult.duplicatesSkipped,
+      errorCount: parsedResult.errorCount,
+      errors: parsedResult.errors
+    });
+  }
+
+  /**
    * Lists registered websites (ANALYST / ADMIN)
    * GET /api/websites
    */
@@ -240,7 +324,155 @@ class MonitoringController {
   }
 
   /**
-   * Registers a new website (ADMIN only)
+   * Registers an external website with instructions & credentials (ADMIN only)
+   * POST /api/websites/external
+   */
+  async registerExternalWebsite(req, res) {
+    const { 
+      websiteId, 
+      name, 
+      domain, 
+      integrationMethod = 'REVERSE_PROXY', 
+      upstreamUrl, 
+      monitoringMode = 'MONITOR_ONLY', 
+      description 
+    } = req.body || {};
+
+    try {
+      const result = await registry.registerExternalWebsite({
+        websiteId,
+        name,
+        domain,
+        integrationMethod,
+        upstreamUrl,
+        monitoringMode,
+        description
+      });
+
+      alertStream.broadcast('website_registered', result.website);
+
+      return res.status(201).json({
+        status: 'success',
+        message: 'External website registered successfully',
+        website: result.website,
+        plaintextSecret: result.plaintextSecret,
+        instructions: result.instructions
+      });
+    } catch (err) {
+      return res.status(400).json({ status: 'error', error: err.message });
+    }
+  }
+
+  /**
+   * Rotates credentials for a website (ADMIN only)
+   * POST /api/websites/:id/rotate-secret
+   */
+  async rotateSecret(req, res) {
+    const { id } = req.params;
+    try {
+      const result = await registry.rotateAgentSecret(id);
+      return res.status(200).json({
+        status: 'success',
+        message: 'Agent credentials rotated successfully',
+        websiteId: result.websiteId,
+        plaintextSecret: result.plaintextSecret,
+        instructions: result.instructions
+      });
+    } catch (err) {
+      return res.status(400).json({ status: 'error', error: err.message });
+    }
+  }
+
+  /**
+   * Verifies connectivity and health diagnostics for a website
+   * POST /api/websites/:id/verify
+   */
+  async verifyWebsiteHealth(req, res) {
+    const { id } = req.params;
+    try {
+      const site = await db.getWebsiteById(id);
+      if (!site) {
+        return res.status(404).json({ status: 'error', error: `Website '${id}' not found` });
+      }
+
+      let healthStatus = 'UNKNOWN';
+      let diagnostic = '';
+
+      if (site.integrationMethod === 'REVERSE_PROXY') {
+        if (!site.upstreamUrl) {
+          healthStatus = 'UNHEALTHY';
+          diagnostic = 'Missing upstream URL configuration';
+        } else {
+          // SSRF validation
+          const ssrf = await validateExternalUrl(site.upstreamUrl, { allowPrivate: !site.isExternal });
+          if (!ssrf.valid) {
+            healthStatus = 'UNHEALTHY';
+            diagnostic = `SSRF Check Blocked: ${ssrf.error}`;
+          } else {
+            // Probe reachability with HEAD / GET with 3s timeout
+            const startTime = Date.now();
+            try {
+              const probeResult = await new Promise((resolve, reject) => {
+                const parsed = new URL(site.upstreamUrl);
+                const client = parsed.protocol === 'https:' ? https : http;
+                const reqProbe = client.request(parsed, {
+                  method: 'HEAD',
+                  timeout: 3000,
+                  headers: { 'User-Agent': 'SecurityGuard-HealthCheck/1.0' }
+                }, (resp) => {
+                  resolve({ statusCode: resp.statusCode, elapsedMs: Date.now() - startTime });
+                });
+                reqProbe.on('timeout', () => {
+                  reqProbe.destroy();
+                  reject(new Error('Connection timed out after 3000ms'));
+                });
+                reqProbe.on('error', (err) => reject(err));
+                reqProbe.end();
+              });
+
+              healthStatus = 'HEALTHY';
+              diagnostic = `Reachable: HTTP ${probeResult.statusCode} received in ${probeResult.elapsedMs}ms (${ssrf.resolvedIps.join(', ')})`;
+            } catch (probeErr) {
+              healthStatus = 'UNHEALTHY';
+              diagnostic = `Connection failed: ${probeErr.message}`;
+            }
+          }
+        }
+      } else {
+        // APPLICATION_AGENT or LOG_INGESTION
+        if (site.lastEventAt) {
+          const lastEventTime = new Date(site.lastEventAt).getTime();
+          const ageMinutes = Math.round((Date.now() - lastEventTime) / 60000);
+          if (ageMinutes <= 15) {
+            healthStatus = 'HEALTHY';
+            diagnostic = `Active telemetry stream. Last event received ${ageMinutes}m ago.`;
+          } else {
+            healthStatus = 'DEGRADED';
+            diagnostic = `Stale telemetry stream. Last event received ${ageMinutes}m ago (${site.lastEventAt}).`;
+          }
+        } else {
+          healthStatus = 'UNKNOWN';
+          diagnostic = `No telemetry events or logs received yet. Follow integration instructions to configure agent or log shipper.`;
+        }
+      }
+
+      await db.updateWebsiteHealth(site.websiteId, healthStatus, diagnostic);
+      const updatedSite = await db.getWebsiteById(id);
+
+      return res.status(200).json({
+        status: 'success',
+        websiteId: site.websiteId,
+        healthStatus,
+        diagnostic,
+        lastHealthCheck: updatedSite?.lastHealthCheck || new Date().toISOString()
+      });
+    } catch (err) {
+      return res.status(500).json({ status: 'error', error: err.message });
+    }
+  }
+
+  /**
+   * Registers a new website (ADMIN only - legacy / internal)
    * POST /api/websites
    */
   async registerWebsite(req, res) {
@@ -265,7 +497,7 @@ class MonitoringController {
    */
   async updateWebsite(req, res) {
     const { id } = req.params;
-    const { monitoringMode, upstreamUrl, isActive } = req.body || {};
+    const { monitoringMode, upstreamUrl, isActive, domain } = req.body || {};
     try {
       let updated = null;
       if (monitoringMode) {
