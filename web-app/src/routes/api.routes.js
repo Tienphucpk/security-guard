@@ -3,12 +3,14 @@ const router = express.Router();
 const apiController = require('../controllers/api.controller');
 const authController = require('../controllers/auth.controller');
 const userController = require('../controllers/user.controller');
+const monitoringController = require('../controllers/monitoring.controller');
 const {
   requireAuth,
   requireRole,
   requireAlertAuth,
   validateAlertIdParam
 } = require('../middleware/auth.middleware');
+const { requireAgentAuth } = require('../middleware/agentAuth.middleware');
 
 // Health and monitoring
 router.get('/health', apiController.health);
@@ -44,5 +46,22 @@ router.get('/users', requireAuth, requireRole(['ADMIN']), userController.listUse
 router.post('/users', requireAuth, requireRole(['ADMIN']), userController.createUser);
 router.patch('/users/:id/status', requireAuth, requireRole(['ADMIN']), userController.updateUserStatus);
 router.patch('/users/:id/role', requireAuth, requireRole(['ADMIN']), userController.updateUserRole);
+
+// ==============================================================================
+// Phase 10: Multi-Website Monitoring & Active Enforcement APIs
+// ==============================================================================
+
+// Gateway Agent-authenticated APIs
+router.post('/monitoring/decision', requireAgentAuth, monitoringController.makeDecision);
+router.post('/ingest/events', requireAgentAuth, monitoringController.ingestEvents);
+
+// Website Registry & Management APIs (RBAC: ADMIN full, ANALYST read-only)
+router.get('/websites', requireAuth, requireRole(['ADMIN', 'ANALYST']), monitoringController.listWebsites);
+router.post('/websites', requireAuth, requireRole(['ADMIN']), monitoringController.registerWebsite);
+router.patch('/websites/:id', requireAuth, requireRole(['ADMIN']), monitoringController.updateWebsite);
+router.get('/websites/audit', requireAuth, requireRole(['ADMIN', 'ANALYST']), monitoringController.listAudit);
+router.get('/websites/:id/policies', requireAuth, requireRole(['ADMIN', 'ANALYST']), monitoringController.listPolicies);
+router.post('/websites/:id/policies', requireAuth, requireRole(['ADMIN']), monitoringController.createPolicy);
+router.delete('/websites/:id/policies/:policyId', requireAuth, requireRole(['ADMIN']), monitoringController.deletePolicy);
 
 module.exports = router;

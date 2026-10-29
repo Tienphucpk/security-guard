@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Login from './Login';
 import UserManagementModal from './UserManagementModal';
+import WebsiteMonitoringSection from './WebsiteMonitoringSection';
 
 export default function App() {
   // Phase 9: Session Authentication State
@@ -12,7 +13,8 @@ export default function App() {
     webApp: 'Online',
     detectionEngine: 'Online',
     database: 'Online',
-    mlEngine: 'Shadow (v1.0.0)'
+    mlEngine: 'Shadow (v1.0.0)',
+    gateway: 'Online (:8080)'
   });
 
   const [stats, setStats] = useState({
@@ -42,7 +44,8 @@ export default function App() {
     status: '',
     severity: '',
     sort: 'newest',
-    search: ''
+    search: '',
+    websiteId: ''
   });
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
@@ -108,6 +111,7 @@ export default function App() {
       params.append('limit', limit);
       if (currentFilters.status) params.append('status', currentFilters.status);
       if (currentFilters.severity) params.append('severity', currentFilters.severity);
+      if (currentFilters.websiteId) params.append('websiteId', currentFilters.websiteId);
       if (currentFilters.sort) params.append('sort', currentFilters.sort);
       if (currentFilters.search) {
         // If search looks like IP, search by IP, else query string
@@ -224,6 +228,18 @@ export default function App() {
       }
     } catch {
       // Fallback
+    }
+
+    // 4. Phase 10: Monitoring Gateway Health Check
+    try {
+      const gwRes = await fetch('http://localhost:8080/health');
+      if (gwRes.ok) {
+        setSystemStatus((prev) => ({ ...prev, gateway: 'Online (:8080)' }));
+      } else {
+        setSystemStatus((prev) => ({ ...prev, gateway: 'Offline' }));
+      }
+    } catch {
+      setSystemStatus((prev) => ({ ...prev, gateway: 'Offline' }));
     }
 
     setLastUpdated(new Date().toLocaleTimeString());
@@ -656,8 +672,19 @@ export default function App() {
               {systemStatus.mlEngine || 'Shadow (v1.0.0)'}
             </span>
           </div>
+
+          <div className="card status-item">
+            <span className="status-name">Monitoring Gateway</span>
+            <span className={`status-pill ${systemStatus.gateway && systemStatus.gateway.includes('Online') ? 'status-online' : 'status-degraded'}`}>
+              <span className={`status-dot ${!systemStatus.gateway || !systemStatus.gateway.includes('Online') ? 'status-dot-warning' : ''}`}></span>
+              {systemStatus.gateway || 'Online (:8080)'}
+            </span>
+          </div>
         </div>
       </section>
+
+      {/* Phase 10: Multi-Website Monitoring & Active Enforcement Section */}
+      <WebsiteMonitoringSection currentUser={currentUser} onActionMessage={setActionMessage} />
 
       {/* Alert Lifecycle Metrics Section (Phase 4 & 6) */}
       <section>
@@ -778,6 +805,20 @@ export default function App() {
           </div>
 
           <div className="filter-group">
+            <label className="filter-label">Website</label>
+            <select
+              className="filter-control"
+              value={filters.websiteId || ''}
+              onChange={(e) => handleFilterChange('websiteId', e.target.value)}
+            >
+              <option value="">Tất cả website</option>
+              <option value="site_demo_node">site_demo_node (Node Shop)</option>
+              <option value="site_demo_python">site_demo_python (Python Portal)</option>
+              <option value="default_web_app">default_web_app (Main Web)</option>
+            </select>
+          </div>
+
+          <div className="filter-group">
             <label className="filter-label">Sắp xếp</label>
             <select
               className="filter-control"
@@ -832,6 +873,7 @@ export default function App() {
                     <th>Loại tấn công</th>
                     <th>Mức độ</th>
                     <th>Risk Score</th>
+                    <th>Website</th>
                     <th>Mục tiêu (URL)</th>
                     <th>Trạng thái</th>
                     <th style={{ textAlign: 'center' }}>Thao tác</th>
@@ -885,6 +927,11 @@ export default function App() {
                         <td>
                           <span className="badge-risk-score">
                             {riskScore} / 100
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.25)', fontFamily: 'monospace' }}>
+                            {alert.websiteId || 'default_web_app'}
                           </span>
                         </td>
                         <td style={{ fontFamily: 'monospace', maxWidth: '200px', wordBreak: 'break-all', fontSize: '0.82rem' }}>

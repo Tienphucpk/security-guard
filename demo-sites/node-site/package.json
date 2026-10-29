@@ -1,0 +1,12 @@
+{
+  "name": "demo-node-shop",
+  "version": "1.0.0",
+  "description": "Demo Node.js E-Commerce Website for Security Guard Multi-Site Monitoring",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["demo", "node"],
+  "author": "Security Guard",
+  "license": "ISC"
+}

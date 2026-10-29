@@ -1,0 +1,19 @@
+{
+  "name": "security-guard-gateway",
+  "version": "1.0.0",
+  "description": "Technology-Independent Monitoring & Enforcement Reverse-Proxy Gateway",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "keywords": [
+    "security",
+    "gateway",
+    "reverse-proxy",
+    "waf",
+    "enforcement"
+  ],
+  "author": "Security Guard Team",
+  "license": "ISC"
+}

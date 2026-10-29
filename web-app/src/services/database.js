@@ -74,9 +74,12 @@ class DatabaseService {
         url,
         status_code,
         user_agent,
-        response_time_ms
+        response_time_ms,
+        website_id,
+        blocked,
+        block_reason
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id
     `;
 
@@ -87,7 +90,10 @@ class DatabaseService {
       logEntry.url || '/',
       parseInt(logEntry.statusCode, 10) || 200,
       logEntry.userAgent || 'unknown',
-      parseFloat(logEntry.responseTime) || 0.0
+      parseFloat(logEntry.responseTime) || 0.0,
+      logEntry.websiteId || logEntry.website_id || 'default_web_app',
+      Boolean(logEntry.blocked),
+      logEntry.blockReason || logEntry.block_reason || null
     ];
 
     try {
@@ -107,7 +113,7 @@ class DatabaseService {
    * @param {Object} params
    * @returns {Promise<{logs: Array, total: number, page: number, limit: number, count: number}>}
    */
-  async getLogs({ page = 1, limit = 50, ip, method, statusCode, from, to } = {}) {
+  async getLogs({ page = 1, limit = 50, ip, method, statusCode, from, to, websiteId } = {}) {
     const safePage = Math.max(1, parseInt(page, 10) || 1);
     const safeLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     const offset = (safePage - 1) * safeLimit;
@@ -115,6 +121,11 @@ class DatabaseService {
     const whereClauses = [];
     const values = [];
     let paramIndex = 1;
+
+    if (websiteId && typeof websiteId === 'string') {
+      whereClauses.push(`website_id = $${paramIndex++}`);
+      values.push(websiteId.trim());
+    }
 
     if (ip && typeof ip === 'string') {
       whereClauses.push(`ip = $${paramIndex++}`);
@@ -168,7 +179,10 @@ class DatabaseService {
         url,
         status_code AS "statusCode",
         user_agent AS "userAgent",
-        response_time_ms AS "responseTime"
+        response_time_ms AS "responseTime",
+        website_id AS "websiteId",
+        blocked,
+        block_reason AS "blockReason"
       FROM request_logs
       ${whereSql}
       ORDER BY timestamp DESC
@@ -272,9 +286,10 @@ class DatabaseService {
         details,
         status,
         created_at,
-        updated_at
+        updated_at,
+        website_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING id
     `;
 
@@ -292,7 +307,8 @@ class DatabaseService {
       JSON.stringify(alertData.details || {}),
       alertData.status || 'new',
       now,
-      now
+      now,
+      alertData.websiteId || alertData.website_id || 'default_web_app'
     ];
 
     try {
@@ -312,7 +328,7 @@ class DatabaseService {
    * @param {Object} params
    * @returns {Promise<{alerts: Array, total: number, totalPages: number, page: number, limit: number, count: number}>}
    */
-  async getAlerts({ page = 1, limit = 50, severity, type, status, ip, from, to, sort = 'newest' } = {}) {
+  async getAlerts({ page = 1, limit = 50, severity, type, status, ip, from, to, sort = 'newest', websiteId } = {}) {
     const safePage = Math.max(1, parseInt(page, 10) || 1);
     const safeLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     const offset = (safePage - 1) * safeLimit;
@@ -320,6 +336,11 @@ class DatabaseService {
     const whereClauses = [];
     const values = [];
     let paramIndex = 1;
+
+    if (websiteId && typeof websiteId === 'string') {
+      whereClauses.push(`website_id = $${paramIndex++}`);
+      values.push(websiteId.trim());
+    }
 
     if (ip && typeof ip === 'string') {
       whereClauses.push(`source_ip = $${paramIndex++}`);
@@ -390,7 +411,8 @@ class DatabaseService {
         details,
         status,
         created_at AS "createdAt",
-        COALESCE(updated_at, created_at) AS "updatedAt"
+        COALESCE(updated_at, created_at) AS "updatedAt",
+        website_id AS "websiteId"
       FROM security_alerts
       ${whereSql}
       ${orderBySql}
@@ -434,7 +456,8 @@ class DatabaseService {
         details,
         status,
         created_at AS "createdAt",
-        COALESCE(updated_at, created_at) AS "updatedAt"
+        COALESCE(updated_at, created_at) AS "updatedAt",
+        website_id AS "websiteId"
       FROM security_alerts
       WHERE id = $1
     `;
@@ -766,6 +789,299 @@ class DatabaseService {
     `;
     const res = await this.pool.query(query);
     return parseInt(res.rows[0]?.total || 0, 10);
+  }
+
+  // ============================================================================
+  // Phase 10: Multi-Website Registry, Policy & Enforcement Database Methods
+  // ============================================================================
+
+  /**
+   * Retrieves all registered monitored websites
+   * @returns {Promise<Array>}
+   */
+  async getAllWebsites() {
+    const query = `
+      SELECT 
+        id,
+        website_id AS "websiteId",
+        name,
+        upstream_url AS "upstreamUrl",
+        monitoring_mode AS "monitoringMode",
+        is_active AS "isActive",
+        description,
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+      FROM monitored_websites
+      ORDER BY id ASC;
+    `;
+    const res = await this.pool.query(query);
+    this.isConnected = true;
+    return res.rows;
+  }
+
+  /**
+   * Retrieves a specific monitored website by its stable website_id
+   * @param {string} websiteId
+   * @returns {Promise<Object|null>}
+   */
+  async getWebsiteById(websiteId) {
+    const query = `
+      SELECT 
+        id,
+        website_id AS "websiteId",
+        name,
+        upstream_url AS "upstreamUrl",
+        monitoring_mode AS "monitoringMode",
+        is_active AS "isActive",
+        agent_secret_hash AS "agentSecretHash",
+        description,
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+      FROM monitored_websites
+      WHERE website_id = $1;
+    `;
+    const res = await this.pool.query(query, [String(websiteId).trim()]);
+    this.isConnected = true;
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Registers a new monitored website
+   */
+  async createWebsite({ websiteId, name, upstreamUrl, monitoringMode = 'MONITOR_ONLY', description = '', agentSecretHash = null }) {
+    const query = `
+      INSERT INTO monitored_websites (
+        website_id,
+        name,
+        upstream_url,
+        monitoring_mode,
+        is_active,
+        agent_secret_hash,
+        description
+      )
+      VALUES ($1, $2, $3, $4, TRUE, $5, $6)
+      RETURNING id, website_id AS "websiteId", name, upstream_url AS "upstreamUrl",
+                monitoring_mode AS "monitoringMode", is_active AS "isActive", description, created_at AS "createdAt";
+    `;
+    const res = await this.pool.query(query, [
+      String(websiteId).trim(),
+      String(name).trim(),
+      String(upstreamUrl).trim(),
+      monitoringMode.toUpperCase() === 'ENFORCE' ? 'ENFORCE' : 'MONITOR_ONLY',
+      agentSecretHash,
+      description
+    ]);
+    this.isConnected = true;
+    return res.rows[0];
+  }
+
+  /**
+   * Updates monitoring mode ('MONITOR_ONLY' or 'ENFORCE')
+   */
+  async updateWebsiteMode(websiteId, mode) {
+    const validMode = String(mode).toUpperCase() === 'ENFORCE' ? 'ENFORCE' : 'MONITOR_ONLY';
+    const query = `
+      UPDATE monitored_websites
+      SET monitoring_mode = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE website_id = $2
+      RETURNING id, website_id AS "websiteId", name, upstream_url AS "upstreamUrl",
+                monitoring_mode AS "monitoringMode", is_active AS "isActive", updated_at AS "updatedAt";
+    `;
+    const res = await this.pool.query(query, [validMode, String(websiteId).trim()]);
+    this.isConnected = true;
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Updates upstream URL
+   */
+  async updateWebsiteUpstream(websiteId, upstreamUrl) {
+    const query = `
+      UPDATE monitored_websites
+      SET upstream_url = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE website_id = $2
+      RETURNING id, website_id AS "websiteId", name, upstream_url AS "upstreamUrl",
+                monitoring_mode AS "monitoringMode", is_active AS "isActive", updated_at AS "updatedAt";
+    `;
+    const res = await this.pool.query(query, [String(upstreamUrl).trim(), String(websiteId).trim()]);
+    this.isConnected = true;
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Updates active state of website
+   */
+  async updateWebsiteStatus(websiteId, isActive) {
+    const query = `
+      UPDATE monitored_websites
+      SET is_active = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE website_id = $2
+      RETURNING id, website_id AS "websiteId", name, is_active AS "isActive", updated_at AS "updatedAt";
+    `;
+    const res = await this.pool.query(query, [Boolean(isActive), String(websiteId).trim()]);
+    this.isConnected = true;
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Retrieves all policies for a given website
+   */
+  async getPoliciesByWebsite(websiteId) {
+    const query = `
+      SELECT 
+        id,
+        website_id AS "websiteId",
+        policy_type AS "policyType",
+        match_criteria AS "matchCriteria",
+        action,
+        reason,
+        is_active AS "isActive",
+        expires_at AS "expiresAt",
+        created_at AS "createdAt"
+      FROM enforcement_policies
+      WHERE website_id = $1
+      ORDER BY id DESC;
+    `;
+    const res = await this.pool.query(query, [String(websiteId).trim()]);
+    this.isConnected = true;
+    return res.rows;
+  }
+
+  /**
+   * Retrieves active, non-expired policies for policy evaluation
+   */
+  async getActivePoliciesForWebsite(websiteId) {
+    const query = `
+      SELECT 
+        id,
+        website_id AS "websiteId",
+        policy_type AS "policyType",
+        match_criteria AS "matchCriteria",
+        action,
+        reason,
+        is_active AS "isActive",
+        expires_at AS "expiresAt"
+      FROM enforcement_policies
+      WHERE website_id = $1
+        AND is_active = TRUE
+        AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+      ORDER BY id ASC;
+    `;
+    const res = await this.pool.query(query, [String(websiteId).trim()]);
+    this.isConnected = true;
+    return res.rows;
+  }
+
+  /**
+   * Creates a new enforcement policy
+   */
+  async createPolicy({ websiteId, policyType, matchCriteria, action = 'BLOCK', reason, expiresAt = null }) {
+    const query = `
+      INSERT INTO enforcement_policies (
+        website_id,
+        policy_type,
+        match_criteria,
+        action,
+        reason,
+        is_active,
+        expires_at
+      )
+      VALUES ($1, $2, $3, $4, $5, TRUE, $6)
+      RETURNING id, website_id AS "websiteId", policy_type AS "policyType",
+                match_criteria AS "matchCriteria", action, reason, is_active AS "isActive",
+                expires_at AS "expiresAt", created_at AS "createdAt";
+    `;
+    const res = await this.pool.query(query, [
+      String(websiteId).trim(),
+      String(policyType).toUpperCase().trim(),
+      typeof matchCriteria === 'string' ? matchCriteria : JSON.stringify(matchCriteria || {}),
+      action.toUpperCase() === 'ALLOW' ? 'ALLOW' : 'BLOCK',
+      String(reason || 'Administrative Security Policy').trim(),
+      expiresAt ? new Date(expiresAt) : null
+    ]);
+    this.isConnected = true;
+    return res.rows[0];
+  }
+
+  /**
+   * Deletes an enforcement policy by ID
+   */
+  async deletePolicy(policyId) {
+    const query = `DELETE FROM enforcement_policies WHERE id = $1 RETURNING id;`;
+    const res = await this.pool.query(query, [parseInt(policyId, 10)]);
+    this.isConnected = true;
+    return res.rows.length > 0;
+  }
+
+  /**
+   * Inserts an enforcement audit log entry
+   */
+  async insertEnforcementAudit({ websiteId, requestId, action, policyId = null, reason, clientIp, targetPath, matchedRule = null }) {
+    const query = `
+      INSERT INTO enforcement_audit_logs (
+        website_id,
+        request_id,
+        action,
+        policy_id,
+        reason,
+        client_ip,
+        target_path,
+        matched_rule
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, created_at AS "createdAt";
+    `;
+    const res = await this.pool.query(query, [
+      String(websiteId).trim(),
+      requestId ? String(requestId).trim() : null,
+      String(action).toUpperCase().trim(),
+      policyId ? parseInt(policyId, 10) : null,
+      String(reason || 'Enforcement evaluation').trim(),
+      String(clientIp || '127.0.0.1').trim(),
+      String(targetPath || '/').trim(),
+      matchedRule ? String(matchedRule).trim() : null
+    ]);
+    this.isConnected = true;
+    return res.rows[0];
+  }
+
+  /**
+   * Retrieves recent enforcement audit records
+   */
+  async getRecentEnforcementAudits({ limit = 50, websiteId } = {}) {
+    const safeLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+    const whereClauses = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (websiteId && typeof websiteId === 'string') {
+      whereClauses.push(`website_id = $${paramIndex++}`);
+      values.push(websiteId.trim());
+    }
+
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const query = `
+      SELECT 
+        id,
+        website_id AS "websiteId",
+        request_id AS "requestId",
+        action,
+        policy_id AS "policyId",
+        reason,
+        client_ip AS "clientIp",
+        target_path AS "targetPath",
+        matched_rule AS "matchedRule",
+        created_at AS "createdAt"
+      FROM enforcement_audit_logs
+      ${whereSql}
+      ORDER BY created_at DESC
+      LIMIT $${paramIndex++};
+    `;
+    values.push(safeLimit);
+
+    const res = await this.pool.query(query, values);
+    this.isConnected = true;
+    return res.rows;
   }
 
   /**

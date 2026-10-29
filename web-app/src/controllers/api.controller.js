@@ -56,6 +56,7 @@ const apiController = {
       if (limit > 100) limit = 100; // Enforce maximum 100 items per request
 
       const { ip, from, to } = req.query;
+      const websiteId = req.query.websiteId || req.query.website_id;
 
       let method = req.query.method ? String(req.query.method).toUpperCase().trim() : undefined;
       if (method && !VALID_METHODS.has(method)) {
@@ -75,7 +76,7 @@ const apiController = {
 
       // 1. Try querying PostgreSQL
       try {
-        const result = await db.getLogs({ page, limit, ip, method, statusCode, from, to });
+        const result = await db.getLogs({ page, limit, ip, method, statusCode, from, to, websiteId });
         return res.status(200).json({
           status: 'ok',
           source: 'database',
@@ -161,6 +162,7 @@ const apiController = {
       if (limit > 100) limit = 100; // Enforce maximum 100 items
 
       const { severity, type, status, ip, from, to } = req.query;
+      const websiteId = req.query.websiteId || req.query.website_id;
 
       let sort = req.query.sort ? String(req.query.sort).toLowerCase().trim() : 'newest';
       const validSorts = new Set(['newest', 'oldest', 'risk_desc', 'risk_asc']);
@@ -170,7 +172,7 @@ const apiController = {
 
       // 1. Try querying PostgreSQL
       try {
-        const result = await db.getAlerts({ page, limit, severity, type, status, ip, from, to, sort });
+        const result = await db.getAlerts({ page, limit, severity, type, status, ip, from, to, sort, websiteId });
         return res.status(200).json({
           status: 'ok',
           source: 'database',

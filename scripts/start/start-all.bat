@@ -95,21 +95,36 @@ echo.
 
 :: 3. Launch Services in Separate Console Windows
 :: Window 1: Detection Engine (Port 5000)
-echo [1/3] Starting Detection Engine (Port 5000)...
+echo [1/6] Starting Detection Engine (Port 5000)...
 start "SECURITY GUARD - Detection Engine" /D "%ROOT_DIR%\detection-engine" cmd /k "!ACTIVATE_CMD! && python -m uvicorn main:app --host 0.0.0.0 --port 5000 --reload"
 
 :: Window 2: Web Application (Port 3000)
-echo [2/3] Starting Web Application (Port 3000)...
+echo [2/6] Starting Web Application (Port 3000)...
 start "SECURITY GUARD - Web App" /D "%ROOT_DIR%\web-app" cmd /k "npm run dev"
 
 :: Window 3: Dashboard (Port 5173)
-echo [3/3] Starting Dashboard (Port 5173)...
+echo [3/6] Starting Dashboard (Port 5173)...
 start "SECURITY GUARD - Dashboard" /D "%ROOT_DIR%\dashboard" cmd /k "npm run dev"
+
+:: Window 4: Monitoring Gateway (Port 8080) - Phase 10
+echo [4/6] Starting Monitoring Gateway (Port 8080)...
+start "SECURITY GUARD - Gateway" /D "%ROOT_DIR%\gateway" cmd /k "node server.js"
+
+:: Window 5: Demo Node.js Website (Port 4001) - Phase 10
+echo [5/6] Starting Demo Node.js Shop (Port 4001)...
+start "SECURITY GUARD - Demo Node Shop" /D "%ROOT_DIR%\demo-sites\node-site" cmd /k "node server.js"
+
+:: Window 6: Demo Python Website (Port 4002) - Phase 10
+echo [6/6] Starting Demo Python Portal (Port 4002)...
+start "SECURITY GUARD - Demo Python Portal" /D "%ROOT_DIR%\demo-sites\python-site" cmd /k "!ACTIVATE_CMD! && python server.py"
 
 echo.
 echo =======================================================
 echo   All services launched in separate windows!
-echo   Window 1: Detection Engine -^> http://localhost:5000/docs
-echo   Window 2: Web Application  -^> http://localhost:3000
-echo   Window 3: Dashboard        -^> http://localhost:5173
+echo   Window 1: Detection Engine  -^> http://localhost:5000/docs
+echo   Window 2: Web Application   -^> http://localhost:3000
+echo   Window 3: Dashboard         -^> http://localhost:5173
+echo   Window 4: Gateway (Proxy)   -^> http://localhost:8080
+echo   Window 5: Demo Node Site    -^> http://localhost:4001
+echo   Window 6: Demo Python Site  -^> http://localhost:4002
 echo =======================================================

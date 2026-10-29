@@ -141,7 +141,8 @@ class DetectionClient {
         userAgent: logEntry.userAgent
       },
       status: 'new',
-      requestLogId: logEntry.id || null
+      requestLogId: logEntry.id || null,
+      websiteId: logEntry.websiteId || logEntry.website_id || 'default_web_app'
     };
 
     // 1. Console alert logs
