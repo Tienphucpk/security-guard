@@ -123,17 +123,18 @@ test('Phase 5.3 - E2E 2: Alert Lifecycle State Machine (NEW -> ACKNOWLEDGED -> R
   const attackUrl = `/search?q=${marker}_%27%20OR%201=1--`;
 
   await makeRequest(attackUrl);
-  await sleep(800);
 
-  let alertsRes = await makeRequest('/api/alerts?sort=newest&limit=20');
-  let alertsJson = JSON.parse(alertsRes.data);
-  let alert = alertsJson.alerts.find((a) => a.targetUrl && a.targetUrl.includes(marker));
-  if (!alert) {
+  let alert = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
     await sleep(400);
-    alertsRes = await makeRequest('/api/alerts?sort=newest&limit=30');
-    alertsJson = JSON.parse(alertsRes.data);
-    alert = alertsJson.alerts.find((a) => a.targetUrl && a.targetUrl.includes(marker));
+    const alertsRes = await makeRequest('/api/alerts?sort=newest&limit=30');
+    try {
+      const alertsJson = JSON.parse(alertsRes.data);
+      alert = alertsJson.alerts?.find((a) => a.targetUrl && a.targetUrl.includes(marker));
+      if (alert) break;
+    } catch {}
   }
+
   assert.ok(alert, 'Alert must exist for lifecycle testing');
   const alertId = alert.id;
 

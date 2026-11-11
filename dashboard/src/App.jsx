@@ -890,16 +890,16 @@ export default function App() {
               <table className="traffic-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
-                    <th>Thời gian</th>
-                    <th>Client IP</th>
-                    <th>Loại tấn công</th>
-                    <th>Mức độ</th>
-                    <th>Risk Score</th>
-                    <th>Website</th>
-                    <th>Mục tiêu (URL)</th>
-                    <th>Trạng thái</th>
-                    <th style={{ textAlign: 'center' }}>Thao tác</th>
+                    <th style={{ width: '60px', whiteSpace: 'nowrap' }}>ID</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Thời gian</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Client IP</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Loại tấn công</th>
+                    <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Mức độ</th>
+                    <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Risk Score</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Website</th>
+                    <th style={{ minWidth: '160px', maxWidth: '260px' }}>Mục tiêu (URL)</th>
+                    <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Trạng thái</th>
+                    <th style={{ textAlign: 'center', width: '170px', minWidth: '170px', whiteSpace: 'nowrap' }}>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -916,14 +916,14 @@ export default function App() {
 
                     return (
                       <tr key={alert.id} style={{ background: severity === 'CRITICAL' || severity === 'HIGH' ? 'rgba(239, 68, 68, 0.04)' : 'transparent' }}>
-                        <td style={{ color: '#64748b', fontFamily: 'monospace' }}>#{alert.id}</td>
+                        <td style={{ color: '#64748b', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>#{alert.id}</td>
                         <td style={{ color: '#94a3b8', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                           {formattedTime}
                         </td>
-                        <td style={{ color: '#cbd5e1', fontFamily: 'monospace' }}>
+                        <td style={{ color: '#cbd5e1', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
                           {ip}
                         </td>
-                        <td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
                           {type === 'ML_ANOMALY' ? (
                             <span className="badge-ml">
                               <span className="badge-ml-icon">🤖</span> ML_ANOMALY
@@ -942,29 +942,29 @@ export default function App() {
                             </span>
                           )}
                         </td>
-                        <td>
+                        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                           <span className={getSeverityBadgeClass(severity)}>
                             {severity}
                           </span>
                         </td>
-                        <td>
+                        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                           <span className="badge-risk-score">
                             {riskScore} / 100
                           </span>
                         </td>
-                        <td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
                           <span style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.25)', fontFamily: 'monospace' }}>
                             {alert.websiteId || 'default_web_app'}
                           </span>
                         </td>
-                        <td style={{ fontFamily: 'monospace', maxWidth: '200px', wordBreak: 'break-all', fontSize: '0.82rem' }}>
+                        <td style={{ fontFamily: 'monospace', maxWidth: '260px', wordBreak: 'break-all', fontSize: '0.82rem' }}>
                           {url}
                         </td>
-                        <td>
+                        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                           {getStatusBadge(status)}
                         </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                        <td style={{ textAlign: 'center', width: '170px', minWidth: '170px', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'center', alignItems: 'center' }}>
                             <button
                               className="btn btn-sm btn-detail"
                               onClick={() => openAlertDetails(alert)}

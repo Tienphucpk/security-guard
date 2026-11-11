@@ -35,10 +35,10 @@ if %ERRORLEVEL% NEQ 0 (
 :: Check Python and Detection Engine virtualenv
 set "ACTIVATE_CMD="
 if exist "%ROOT_DIR%\detection-engine\venv\Scripts\activate.bat" (
-    set "ACTIVATE_CMD=call venv\Scripts\activate.bat"
+    set "ACTIVATE_CMD=call "%ROOT_DIR%\detection-engine\venv\Scripts\activate.bat""
     echo [OK] Detection Engine virtualenv: venv
 ) else if exist "%ROOT_DIR%\detection-engine\.venv\Scripts\activate.bat" (
-    set "ACTIVATE_CMD=call .venv\Scripts\activate.bat"
+    set "ACTIVATE_CMD=call "%ROOT_DIR%\detection-engine\.venv\Scripts\activate.bat""
     echo [OK] Detection Engine virtualenv: .venv
 ) else (
     where python >nul 2>&1
@@ -96,7 +96,7 @@ echo.
 :: 3. Launch Services in Separate Console Windows
 :: Window 1: Detection Engine (Port 5000)
 echo [1/6] Starting Detection Engine (Port 5000)...
-start "SECURITY GUARD - Detection Engine" /D "%ROOT_DIR%\detection-engine" cmd /k "!ACTIVATE_CMD! && python -m uvicorn main:app --host 0.0.0.0 --port 5000 --reload"
+start "SECURITY GUARD - Detection Engine" /D "%ROOT_DIR%\detection-engine" cmd /k "call venv\Scripts\activate.bat && python -m uvicorn main:app --host 0.0.0.0 --port 5000 --reload"
 
 :: Window 2: Web Application (Port 3000)
 echo [2/6] Starting Web Application (Port 3000)...
@@ -116,7 +116,7 @@ start "SECURITY GUARD - Demo Node Shop" /D "%ROOT_DIR%\demo-sites\node-site" cmd
 
 :: Window 6: Demo Python Website (Port 4002) - Phase 10
 echo [6/6] Starting Demo Python Portal (Port 4002)...
-start "SECURITY GUARD - Demo Python Portal" /D "%ROOT_DIR%\demo-sites\python-site" cmd /k "!ACTIVATE_CMD! && python server.py"
+start "SECURITY GUARD - Demo Python Portal" /D "%ROOT_DIR%\demo-sites\python-site" cmd /k "call ..\..\detection-engine\venv\Scripts\activate.bat && python server.py"
 
 echo.
 echo =======================================================
@@ -127,4 +127,10 @@ echo   Window 3: Dashboard         -^> http://localhost:5173
 echo   Window 4: Gateway (Proxy)   -^> http://localhost:8080
 echo   Window 5: Demo Node Site    -^> http://localhost:4001
 echo   Window 6: Demo Python Site  -^> http://localhost:4002
+echo.
+echo   Docker Security Labs (access via Gateway):
+echo   - OWASP Juice Shop: http://localhost:8080/site/juiceshop/
+echo   - DVWA:            http://localhost:8080/site/dvwa/
+echo   - OWASP WebGoat:    http://localhost:8080/site/webgoat/WebGoat
+echo   - OWASP WebWolf:    http://localhost:8080/site/webwolf/WebWolf
 echo =======================================================

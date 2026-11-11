@@ -50,14 +50,15 @@ class BaseDetectionRule(ABC):
     @staticmethod
     def normalize_str(val: Any) -> str:
         """
-        Chuẩn hóa chuỗi an toàn: giải mã URL, chuyển về lowercase, strip khoảng trắng.
+        Chuẩn hóa chuỗi an toàn: giải mã URL (bao gồm '+' thành khoảng trắng), chuyển về lowercase, strip khoảng trắng.
         """
         if val is None:
             return ""
         try:
             s = str(val)
-            # Decode URL-encoded characters (e.g. %27 -> ', %20 -> space)
-            decoded = urllib.parse.unquote(s)
+            # Decode URL-encoded characters (%27 -> ', %20 -> space) and '+' in query strings
+            decoded = urllib.parse.unquote_plus(s)
+            decoded = decoded.replace('+', ' ')
             return decoded.lower().strip()
         except Exception:
-            return str(val).lower().strip()
+            return str(val).replace('+', ' ').lower().strip()

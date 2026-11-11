@@ -66,8 +66,7 @@ taskkill /F /T /FI "WINDOWTITLE eq SECURITY GUARD - Demo Python Portal*" >nul 2>
 :: Clean up any lingering reload workers
 powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { ($_.CommandLine -like '*uvicorn main:app*') -or ($_.CommandLine -like '*node --watch src/server.js*') -or ($_.CommandLine -like '*node*vite.js*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 
-echo [3/3] Stopping Docker containers if running...
-docker compose down >nul 2>&1
+echo [3/3] Preserving active Docker lab containers (Juice Shop, DVWA, WebGoat).
 
 echo.
 echo =======================================================
