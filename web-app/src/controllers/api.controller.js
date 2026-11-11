@@ -116,9 +116,10 @@ const apiController = {
    */
   getStats: async (req, res) => {
     try {
+      const websiteId = req.query.website_id || req.query.websiteId || null;
       // 1. Try querying PostgreSQL
       try {
-        const stats = await db.getLogStats();
+        const stats = await db.getLogStats(websiteId);
         return res.status(200).json({
           status: 'ok',
           source: 'database',
@@ -257,9 +258,10 @@ const apiController = {
    */
   getAlertStats: async (req, res) => {
     try {
+      const websiteId = req.query.website_id || req.query.websiteId || null;
       // 1. Try querying PostgreSQL
       try {
-        const stats = await db.getAlertStats();
+        const stats = await db.getAlertStats(websiteId);
         return res.status(200).json({
           status: 'ok',
           source: 'database',

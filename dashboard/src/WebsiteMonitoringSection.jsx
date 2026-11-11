@@ -400,7 +400,7 @@ export default function WebsiteMonitoringSection({ currentUser, onActionMessage 
                 </div>
 
                 {/* Details section */}
-                <div style={{ fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.75rem', lineHeight: '1.4' }}>
+                <div style={{ fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.5rem', lineHeight: '1.4' }}>
                   {site.domain && (
                     <div style={{ marginBottom: '0.2rem' }}>
                       <span style={{ color: '#64748b' }}>Domain: </span>
@@ -423,6 +423,84 @@ export default function WebsiteMonitoringSection({ currentUser, onActionMessage 
                     {site.description || 'Chưa có mô tả'}
                   </div>
                 </div>
+
+                {/* Per-Website Traffic & Alert Metrics */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '0.35rem',
+                  padding: '0.5rem',
+                  background: 'rgba(15, 23, 42, 0.7)',
+                  borderRadius: '6px',
+                  border: '1px solid #1e293b',
+                  marginBottom: '0.5rem',
+                  textAlign: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Tổng Req</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc' }}>{site.totalRequests || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', color: '#4ade80' }}>Hợp lệ</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#4ade80' }}>{site.normalRequests || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', color: '#f87171' }}>Bất thường</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f87171' }}>{site.suspiciousRequests || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', color: '#fbbf24' }}>Cảnh báo</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fbbf24' }}>{site.totalAlerts || 0}</div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.65rem' }}>
+                  🕒 Hoạt động gần nhất: <span style={{ color: '#cbd5e1' }}>{site.lastActivity ? new Date(site.lastActivity).toLocaleString() : 'Chưa có traffic'}</span>
+                </div>
+
+                {/* Quick-Open Action Buttons */}
+                {site.upstreamUrl && (
+                  <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.65rem' }}>
+                    <a
+                      href={`http://localhost:8080/site/${site.websiteId}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        flex: 1,
+                        textAlign: 'center',
+                        textDecoration: 'none',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        padding: '0.35rem 0.4rem',
+                        borderRadius: '4px',
+                        background: '#0284c722',
+                        color: '#38bdf8',
+                        border: '1px solid #0284c755'
+                      }}
+                    >
+                      🚀 Mở qua Gateway (:8080)
+                    </a>
+                    <a
+                      href={site.upstreamUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        flex: 1,
+                        textAlign: 'center',
+                        textDecoration: 'none',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        padding: '0.35rem 0.4rem',
+                        borderRadius: '4px',
+                        background: '#33415533',
+                        color: '#94a3b8',
+                        border: '1px solid #47556955'
+                      }}
+                    >
+                      🔗 Mở trực tiếp
+                    </a>
+                  </div>
+                )}
 
                 {/* Health & Diagnostic Bar */}
                 <div

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Login from './Login';
 import UserManagementModal from './UserManagementModal';
 import WebsiteMonitoringSection from './WebsiteMonitoringSection';
+import AdaptiveDefenseSection from './AdaptiveDefenseSection';
 
 export default function App() {
   // Phase 9: Session Authentication State
@@ -59,9 +60,24 @@ export default function App() {
   const [modalLoading, setModalLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [actionMessage, setActionMessage] = useState(null);
+  const [availableWebsites, setAvailableWebsites] = useState([]);
+
+  // Fetch available registered websites for filter dropdown
+  const fetchWebsitesList = useCallback(async () => {
+    try {
+      const res = await fetch('http://localhost:3000/api/websites', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.websites)) {
+          setAvailableWebsites(data.websites);
+        }
+      }
+    } catch {}
+  }, []);
 
   // Phase 9: Verify session on application load
   useEffect(() => {
+    fetchWebsitesList();
     const verifyAuth = async () => {
       try {
         const res = await fetch('http://localhost:3000/api/auth/me', {
@@ -137,9 +153,10 @@ export default function App() {
   // Fetch Summary Statistics
   const fetchStats = useCallback(async () => {
     try {
+      const siteParam = filters.websiteId ? `?website_id=${encodeURIComponent(filters.websiteId)}` : '';
       const [statsRes, alertStatsRes] = await Promise.all([
-        fetch('http://localhost:3000/api/logs/stats').catch(() => null),
-        fetch('http://localhost:3000/api/alerts/stats').catch(() => null)
+        fetch(`http://localhost:3000/api/logs/stats${siteParam}`).catch(() => null),
+        fetch(`http://localhost:3000/api/alerts/stats${siteParam}`).catch(() => null)
       ]);
 
       if (statsRes && statsRes.ok) {
@@ -177,7 +194,7 @@ export default function App() {
     } catch {
       // Graceful fallback
     }
-  }, []);
+  }, [filters.websiteId]);
 
   // Fetch Health & Live Logs
   const fetchHealthAndLogs = useCallback(async () => {
@@ -219,7 +236,8 @@ export default function App() {
 
     // 3. Recent 5 HTTP Request Logs
     try {
-      const logsRes = await fetch('http://localhost:3000/api/logs?limit=5');
+      const siteParam = filters.websiteId ? `&website_id=${encodeURIComponent(filters.websiteId)}` : '';
+      const logsRes = await fetch(`http://localhost:3000/api/logs?limit=5${siteParam}`);
       if (logsRes.ok) {
         const logsData = await logsRes.json();
         if (logsData && Array.isArray(logsData.logs)) {
@@ -243,7 +261,7 @@ export default function App() {
     }
 
     setLastUpdated(new Date().toLocaleTimeString());
-  }, []);
+  }, [filters.websiteId]);
 
   // Initial Data Fetch & Periodic Background Polling
   useEffect(() => {
@@ -686,6 +704,9 @@ export default function App() {
       {/* Phase 10: Multi-Website Monitoring & Active Enforcement Section */}
       <WebsiteMonitoringSection currentUser={currentUser} onActionMessage={setActionMessage} />
 
+      {/* Advanced Defense: Adaptive Hybrid Defense & Evidence Aggregation */}
+      <AdaptiveDefenseSection currentUser={currentUser} onActionMessage={setActionMessage} />
+
       {/* Alert Lifecycle Metrics Section (Phase 4 & 6) */}
       <section>
         <h2 className="section-title">Alert Lifecycle & Detection Metrics</h2>
@@ -812,9 +833,11 @@ export default function App() {
               onChange={(e) => handleFilterChange('websiteId', e.target.value)}
             >
               <option value="">Tất cả website</option>
-              <option value="site_demo_node">site_demo_node (Node Shop)</option>
-              <option value="site_demo_python">site_demo_python (Python Portal)</option>
-              <option value="default_web_app">default_web_app (Main Web)</option>
+              {availableWebsites.map((site) => (
+                <option key={site.websiteId} value={site.websiteId}>
+                  {site.name} ({site.websiteId})
+                </option>
+              ))}
             </select>
           </div>
 

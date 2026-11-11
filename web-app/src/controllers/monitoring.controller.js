@@ -404,7 +404,8 @@ class MonitoringController {
           diagnostic = 'Missing upstream URL configuration';
         } else {
           // SSRF validation
-          const ssrf = await validateExternalUrl(site.upstreamUrl, { allowPrivate: !site.isExternal });
+          const allowPrivate = !site.isExternal || process.env.ALLOW_PRIVATE_UPSTREAMS === 'true';
+          const ssrf = await validateExternalUrl(site.upstreamUrl, { allowPrivate });
           if (!ssrf.valid) {
             healthStatus = 'UNHEALTHY';
             diagnostic = `SSRF Check Blocked: ${ssrf.error}`;
@@ -596,6 +597,24 @@ class MonitoringController {
         websiteId: websiteId || null
       });
       return res.status(200).json({ status: 'success', count: audits.length, audits });
+    } catch (err) {
+      return res.status(500).json({ status: 'error', error: err.message });
+    }
+  }
+
+  /**
+   * Lists adaptive detection evidence logs (ANALYST / ADMIN)
+   * GET /api/monitoring/evidence
+   */
+  async listEvidence(req, res) {
+    const { websiteId, decision, limit } = req.query;
+    try {
+      const records = await db.getRecentDetectionEvidence({
+        limit: parseInt(limit, 10) || 50,
+        websiteId: websiteId || null,
+        decision: decision || null
+      });
+      return res.status(200).json({ status: 'success', count: records.length, evidence: records });
     } catch (err) {
       return res.status(500).json({ status: 'error', error: err.message });
     }

@@ -77,9 +77,16 @@ class DatabaseService {
         response_time_ms,
         website_id,
         blocked,
-        block_reason
+        block_reason,
+        request_id,
+        risk_score,
+        decision,
+        decision_reason,
+        rule_matches,
+        ml_anomaly_score,
+        evidence
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING id
     `;
 
@@ -93,7 +100,14 @@ class DatabaseService {
       parseFloat(logEntry.responseTime) || 0.0,
       logEntry.websiteId || logEntry.website_id || 'default_web_app',
       Boolean(logEntry.blocked),
-      logEntry.blockReason || logEntry.block_reason || null
+      logEntry.blockReason || logEntry.block_reason || null,
+      logEntry.requestId || logEntry.request_id || null,
+      parseFloat(logEntry.riskScore || logEntry.risk_score || 0.0),
+      logEntry.decision || (logEntry.blocked ? 'BLOCK' : 'ALLOW'),
+      logEntry.decisionReason || logEntry.decision_reason || null,
+      JSON.stringify(logEntry.ruleMatches || logEntry.rule_matches || []),
+      typeof logEntry.mlAnomalyScore === 'number' ? logEntry.mlAnomalyScore : (logEntry.ml_anomaly_score || null),
+      JSON.stringify(logEntry.evidence || {})
     ];
 
     try {
@@ -105,6 +119,117 @@ class DatabaseService {
       this.lastError = err.message;
       console.warn('[DB ERROR] Failed to save request log to PostgreSQL:', err.message);
       return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Inserts comprehensive detection evidence audit record
+   * @param {Object} evidenceData
+   * @returns {Promise<{success: boolean, id?: number, error?: string}>}
+   */
+  async insertDetectionEvidence(evidenceData) {
+    const query = `
+      INSERT INTO detection_evidence (
+        request_id,
+        website_id,
+        request_log_id,
+        timestamp,
+        rule_matches,
+        rule_severity,
+        ml_anomaly_score,
+        ml_threshold,
+        ml_mode,
+        matched_features,
+        evidence,
+        risk_score,
+        decision,
+        decision_reason,
+        processing_time_ms
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      RETURNING id
+    `;
+    const values = [
+      evidenceData.requestId || evidenceData.request_id || `req_${Date.now()}`,
+      evidenceData.websiteId || evidenceData.website_id || 'default_web_app',
+      evidenceData.requestLogId || evidenceData.request_log_id || null,
+      evidenceData.timestamp ? new Date(evidenceData.timestamp) : new Date(),
+      JSON.stringify(evidenceData.ruleMatches || evidenceData.rule_matches || []),
+      evidenceData.ruleSeverity || evidenceData.rule_severity || 'NONE',
+      typeof evidenceData.mlAnomalyScore === 'number' ? evidenceData.mlAnomalyScore : (evidenceData.ml_anomaly_score || 0.0),
+      typeof evidenceData.mlThreshold === 'number' ? evidenceData.mlThreshold : (evidenceData.ml_threshold || 0.0),
+      evidenceData.mlMode || evidenceData.ml_mode || 'shadow',
+      JSON.stringify(evidenceData.matchedFeatures || evidenceData.matched_features || []),
+      JSON.stringify(evidenceData.evidence || {}),
+      parseFloat(evidenceData.riskScore || evidenceData.risk_score || 0.0),
+      evidenceData.decision || 'ALLOW',
+      evidenceData.decisionReason || evidenceData.decision_reason || 'Normal traffic',
+      parseFloat(evidenceData.processingTimeMs || evidenceData.processing_time_ms || 0.0)
+    ];
+
+    try {
+      const res = await this.pool.query(query, values);
+      this.isConnected = true;
+      return { success: true, id: res.rows[0]?.id };
+    } catch (err) {
+      console.warn('[DB ERROR] Failed to save detection evidence:', err.message);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Retrieves recent detection evidence records with optional filters
+   * @param {Object} params
+   * @returns {Promise<Array>}
+   */
+  async getRecentDetectionEvidence({ limit = 50, websiteId = null, decision = null } = {}) {
+    const safeLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+    const whereClauses = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (websiteId) {
+      whereClauses.push(`website_id = $${paramIndex++}`);
+      values.push(websiteId.trim());
+    }
+    if (decision) {
+      whereClauses.push(`decision = $${paramIndex++}`);
+      values.push(decision.trim().toUpperCase());
+    }
+
+    const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const query = `
+      SELECT 
+        id,
+        request_id AS "requestId",
+        website_id AS "websiteId",
+        request_log_id AS "requestLogId",
+        timestamp,
+        rule_matches AS "ruleMatches",
+        rule_severity AS "ruleSeverity",
+        ml_anomaly_score AS "mlAnomalyScore",
+        ml_threshold AS "mlThreshold",
+        ml_mode AS "mlMode",
+        matched_features AS "matchedFeatures",
+        evidence,
+        risk_score AS "riskScore",
+        decision,
+        decision_reason AS "decisionReason",
+        processing_time_ms AS "processingTimeMs"
+      FROM detection_evidence
+      ${whereSQL}
+      ORDER BY id DESC
+      LIMIT $${paramIndex};
+    `;
+    values.push(safeLimit);
+
+    try {
+      const res = await this.pool.query(query, values);
+      this.isConnected = true;
+      return res.rows;
+    } catch (err) {
+      console.warn('[DB ERROR] Failed to fetch detection evidence:', err.message);
+      return [];
     }
   }
 
@@ -203,9 +328,17 @@ class DatabaseService {
 
   /**
    * Computes summary metrics and aggregates from request_logs
+   * @param {string|null} websiteId
    * @returns {Promise<Object>}
    */
-  async getLogStats() {
+  async getLogStats(websiteId = null) {
+    let whereClause = '';
+    const params = [];
+    if (websiteId && websiteId !== 'all') {
+      whereClause = ' WHERE website_id = $1';
+      params.push(websiteId);
+    }
+
     const summaryQuery = `
       SELECT
         COUNT(*) AS "totalRequests",
@@ -213,12 +346,12 @@ class DatabaseService {
         COUNT(CASE WHEN status_code >= 400 AND status_code < 500 THEN 1 END) AS "clientErrors",
         COUNT(CASE WHEN status_code >= 500 AND status_code < 600 THEN 1 END) AS "serverErrors",
         COUNT(DISTINCT ip) AS "uniqueIps"
-      FROM request_logs
+      FROM request_logs${whereClause}
     `;
 
     const topIpsQuery = `
       SELECT ip, COUNT(*) AS count
-      FROM request_logs
+      FROM request_logs${whereClause}
       GROUP BY ip
       ORDER BY count DESC
       LIMIT 5
@@ -226,7 +359,7 @@ class DatabaseService {
 
     const topPathsQuery = `
       SELECT url, COUNT(*) AS count
-      FROM request_logs
+      FROM request_logs${whereClause}
       GROUP BY url
       ORDER BY count DESC
       LIMIT 5
@@ -234,16 +367,16 @@ class DatabaseService {
 
     const methodsQuery = `
       SELECT method, COUNT(*) AS count
-      FROM request_logs
+      FROM request_logs${whereClause}
       GROUP BY method
       ORDER BY count DESC
     `;
 
     const [summaryRes, topIpsRes, topPathsRes, methodsRes] = await Promise.all([
-      this.pool.query(summaryQuery),
-      this.pool.query(topIpsQuery),
-      this.pool.query(topPathsQuery),
-      this.pool.query(methodsQuery)
+      this.pool.query(summaryQuery, params),
+      this.pool.query(topIpsQuery, params),
+      this.pool.query(topPathsQuery, params),
+      this.pool.query(methodsQuery, params)
     ]);
 
     this.isConnected = true;
@@ -525,9 +658,17 @@ class DatabaseService {
 
   /**
    * Computes security alert statistics with breakdown by status and severity
+   * @param {string|null} websiteId
    * @returns {Promise<Object>}
    */
-  async getAlertStats() {
+  async getAlertStats(websiteId = null) {
+    let whereClause = '';
+    const params = [];
+    if (websiteId && websiteId !== 'all') {
+      whereClause = ' WHERE website_id = $1';
+      params.push(websiteId);
+    }
+
     const summaryQuery = `
       SELECT
         COUNT(*) AS "totalAlerts",
@@ -540,12 +681,12 @@ class DatabaseService {
         COUNT(CASE WHEN UPPER(severity) = 'LOW' THEN 1 END) AS "lowAlerts",
         COUNT(CASE WHEN alert_type = 'ML_ANOMALY' THEN 1 END) AS "mlAlerts",
         COUNT(CASE WHEN created_at >= NOW() - INTERVAL '24 hours' THEN 1 END) AS "alertsLast24Hours"
-      FROM security_alerts
+      FROM security_alerts${whereClause}
     `;
 
     const topTypesQuery = `
       SELECT alert_type AS type, COUNT(*) AS count
-      FROM security_alerts
+      FROM security_alerts${whereClause}
       GROUP BY alert_type
       ORDER BY count DESC
       LIMIT 5
@@ -553,16 +694,16 @@ class DatabaseService {
 
     const topIpsQuery = `
       SELECT source_ip AS ip, COUNT(*) AS count
-      FROM security_alerts
+      FROM security_alerts${whereClause}
       GROUP BY source_ip
       ORDER BY count DESC
       LIMIT 5
     `;
 
     const [sumRes, typesRes, ipsRes] = await Promise.all([
-      this.pool.query(summaryQuery),
-      this.pool.query(topTypesQuery),
-      this.pool.query(topIpsQuery)
+      this.pool.query(summaryQuery, params),
+      this.pool.query(topTypesQuery, params),
+      this.pool.query(topIpsQuery, params)
     ]);
 
     const row = sumRes.rows[0] || {};
@@ -796,30 +937,52 @@ class DatabaseService {
   // ============================================================================
 
   /**
-   * Retrieves all registered monitored websites
+   * Retrieves all registered monitored websites with enriched traffic & alert metrics
    * @returns {Promise<Array>}
    */
   async getAllWebsites() {
     const query = `
       SELECT 
-        id,
-        website_id AS "websiteId",
-        name,
-        domain,
-        integration_method AS "integrationMethod",
-        upstream_url AS "upstreamUrl",
-        monitoring_mode AS "monitoringMode",
-        is_active AS "isActive",
-        is_external AS "isExternal",
-        health_status AS "healthStatus",
-        last_health_check AS "lastHealthCheck",
-        health_diagnostic AS "healthDiagnostic",
-        last_event_at AS "lastEventAt",
-        description,
-        created_at AS "createdAt",
-        updated_at AS "updatedAt"
-      FROM monitored_websites
-      ORDER BY id ASC;
+        w.id,
+        w.website_id AS "websiteId",
+        w.name,
+        w.domain,
+        w.integration_method AS "integrationMethod",
+        w.upstream_url AS "upstreamUrl",
+        w.monitoring_mode AS "monitoringMode",
+        w.is_active AS "isActive",
+        w.is_external AS "isExternal",
+        w.health_status AS "healthStatus",
+        w.last_health_check AS "lastHealthCheck",
+        w.health_diagnostic AS "healthDiagnostic",
+        w.last_event_at AS "lastEventAt",
+        w.description,
+        w.created_at AS "createdAt",
+        w.updated_at AS "updatedAt",
+        COALESCE(req_stats.total_requests, 0)::int AS "totalRequests",
+        COALESCE(req_stats.normal_requests, 0)::int AS "normalRequests",
+        COALESCE(req_stats.suspicious_requests, 0)::int AS "suspiciousRequests",
+        COALESCE(alert_stats.total_alerts, 0)::int AS "totalAlerts",
+        GREATEST(w.last_event_at, req_stats.last_request_time) AS "lastActivity"
+      FROM monitored_websites w
+      LEFT JOIN (
+        SELECT 
+          website_id,
+          COUNT(*) AS total_requests,
+          COUNT(CASE WHEN blocked = FALSE AND (decision IS NULL OR decision = 'ALLOW') THEN 1 END) AS normal_requests,
+          COUNT(CASE WHEN blocked = TRUE OR (decision IS NOT NULL AND decision != 'ALLOW') THEN 1 END) AS suspicious_requests,
+          MAX(created_at) AS last_request_time
+        FROM request_logs
+        GROUP BY website_id
+      ) req_stats ON req_stats.website_id = w.website_id
+      LEFT JOIN (
+        SELECT 
+          website_id,
+          COUNT(*) AS total_alerts
+        FROM security_alerts
+        GROUP BY website_id
+      ) alert_stats ON alert_stats.website_id = w.website_id
+      ORDER BY w.id ASC;
     `;
     const res = await this.pool.query(query);
     this.isConnected = true;

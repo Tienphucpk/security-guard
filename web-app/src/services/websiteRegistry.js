@@ -220,7 +220,8 @@ class WebsiteRegistryService {
       if (!upstreamUrl) {
         throw new Error('upstreamUrl is required for REVERSE_PROXY integration');
       }
-      const ssrfCheck = await validateExternalUrl(upstreamUrl, { allowPrivate: false });
+      const allowPrivate = process.env.ALLOW_PRIVATE_UPSTREAMS === 'true';
+      const ssrfCheck = await validateExternalUrl(upstreamUrl, { allowPrivate });
       if (!ssrfCheck.valid) {
         throw new Error(`SSRF Validation Failed: ${ssrfCheck.error}`);
       }

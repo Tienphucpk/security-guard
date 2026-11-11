@@ -25,10 +25,14 @@ const HOST = process.env.GATEWAY_HOST || '0.0.0.0';
 function getWebAppUrl() { return process.env.WEB_APP_URL || 'http://127.0.0.1:3000'; }
 const GATEWAY_SECRET = process.env.GATEWAY_SHARED_SECRET || 'secguard_gateway_internal_secret_2026';
 
-// Pre-approved demo upstreams (SSRF Boundary for built-in lab sites)
+// Pre-approved demo upstreams and local Docker security labs (SSRF Boundary)
 const APPROVED_UPSTREAMS = {
   'site_demo_node': 'http://127.0.0.1:4001',
-  'site_demo_python': 'http://127.0.0.1:4002'
+  'site_demo_python': 'http://127.0.0.1:4002',
+  'owasp_juice_shop': 'http://127.0.0.1:4101',
+  'dvwa': 'http://127.0.0.1:4102',
+  'owasp_webgoat': 'http://127.0.0.1:4103/WebGoat',
+  'owasp_webwolf': 'http://127.0.0.1:9091/WebWolf'
 };
 
 // In-memory cache for dynamic website registry
@@ -201,6 +205,7 @@ const server = http.createServer(async (req, res) => {
   // 2. Identify Target Website & Upstream URL
   let websiteId = req.headers['x-website-id'];
   let targetPath = req.url;
+  let isPathPrefixRouting = false;
 
   // Path Prefix Routing: /site/:website_id/*
   const prefixMatch = req.url.match(/^\/site\/([a-zA-Z0-9_-]+)(\/.*|\?.*|$)/);
@@ -208,6 +213,7 @@ const server = http.createServer(async (req, res) => {
     websiteId = prefixMatch[1];
     targetPath = prefixMatch[2] || '/';
     if (!targetPath.startsWith('/')) targetPath = '/' + targetPath;
+    isPathPrefixRouting = true;
   }
 
   // Host Header Routing fallback
@@ -215,12 +221,30 @@ const server = http.createServer(async (req, res) => {
     websiteId = await resolveWebsiteIdFromHost(req.headers.host);
   }
 
+  // Cookie fallback: secguard_site cookie (supports SPA static assets & AJAX requests)
+  if (!websiteId && req.headers.cookie) {
+    const cookieMatch = req.headers.cookie.match(/(?:^|;\s*)secguard_site=([a-zA-Z0-9_-]+)/);
+    if (cookieMatch) {
+      websiteId = cookieMatch[1];
+      targetPath = req.url;
+    }
+  }
+
+  // Referer fallback (e.g. assets or API calls loaded from /site/:website_id/)
+  if (!websiteId && req.headers.referer) {
+    const refMatch = req.headers.referer.match(/\/site\/([a-zA-Z0-9_-]+)/);
+    if (refMatch) {
+      websiteId = refMatch[1];
+      targetPath = req.url;
+    }
+  }
+
   if (!websiteId) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({
       error: 'Bad Request',
       message: 'Missing website identifier. Provide header X-Website-Id, Host domain, or use path prefix /site/:website_id/*',
-      hint: 'Available demo sites: site_demo_node, site_demo_python'
+      hint: 'Available sites: owasp_juice_shop, dvwa, owasp_webgoat, owasp_webwolf, site_demo_node, site_demo_python'
     }));
   }
 
@@ -230,7 +254,7 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({
       error: 'Not Found',
       message: `Unknown or unapproved website identifier '${websiteId}'`,
-      hint: 'Approved demo sites: site_demo_node (:4001), site_demo_python (:4002)'
+      hint: 'Approved sites: owasp_juice_shop, dvwa, owasp_webgoat, owasp_webwolf, site_demo_node, site_demo_python'
     }));
   }
 
@@ -245,7 +269,8 @@ const server = http.createServer(async (req, res) => {
 
   // SSRF Protection for external upstreams
   if (upstreamInfo.isExternal && validateExternalUrl) {
-    const ssrfCheck = await validateExternalUrl(upstreamInfo.upstreamUrl, { allowPrivate: false });
+    const allowPrivate = process.env.ALLOW_PRIVATE_UPSTREAMS === 'true';
+    const ssrfCheck = await validateExternalUrl(upstreamInfo.upstreamUrl, { allowPrivate });
     if (!ssrfCheck.valid) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({
@@ -340,7 +365,15 @@ const server = http.createServer(async (req, res) => {
     }
 
     // 6. Forward Permitted Request to Approved Upstream
-    const upstreamUrl = new URL(targetPath, upstreamBase);
+    // Handle subpath upstreams (e.g., OWASP WebGoat on /WebGoat, WebWolf on /WebWolf)
+    const baseParsed = new URL(upstreamBase);
+    const basePath = (baseParsed.pathname || '').replace(/\/+$/, '');
+    let finalPath = targetPath;
+    if (basePath && basePath !== '/' && !finalPath.startsWith(basePath)) {
+      finalPath = basePath + (finalPath.startsWith('/') ? finalPath : '/' + finalPath);
+    }
+    const upstreamUrl = new URL(finalPath, baseParsed.origin);
+
     const upstreamOptions = {
       protocol: upstreamUrl.protocol,
       hostname: upstreamUrl.hostname,
@@ -351,6 +384,7 @@ const server = http.createServer(async (req, res) => {
         ...req.headers,
         host: upstreamUrl.host,
         'x-forwarded-for': clientIp,
+        'x-forwarded-proto': 'http',
         'x-request-id': requestId,
         'x-security-guard-monitored': 'true'
       },
@@ -362,9 +396,38 @@ const server = http.createServer(async (req, res) => {
     const proxyReq = clientLib.request(upstreamOptions, (upstreamRes) => {
       const responseTime = Date.now() - startTime;
 
-      // Copy upstream headers to client response
+      // Copy and adjust upstream headers for client response
+      const resHeaders = { ...upstreamRes.headers };
+
+      // Rewrite Location header for redirects (301, 302, 303, 307, 308)
+      if (resHeaders.location && isPathPrefixRouting) {
+        let loc = resHeaders.location;
+        const originStr = upstreamUrl.origin;
+        if (loc.startsWith(originStr)) {
+          loc = loc.slice(originStr.length);
+        }
+        if (loc.startsWith('/')) {
+          resHeaders.location = `/site/${websiteId}${loc}`;
+        } else if (!loc.startsWith('http://') && !loc.startsWith('https://')) {
+          resHeaders.location = `/site/${websiteId}/${loc}`;
+        }
+      }
+
+      // If user accesses via /site/:website_id, set secguard_site cookie so SPA subrequests resolve properly
+      if (isPathPrefixRouting) {
+        const existingCookie = resHeaders['set-cookie'];
+        const siteCookie = `secguard_site=${websiteId}; Path=/; SameSite=Lax`;
+        if (Array.isArray(existingCookie)) {
+          resHeaders['set-cookie'] = [...existingCookie, siteCookie];
+        } else if (existingCookie) {
+          resHeaders['set-cookie'] = [existingCookie, siteCookie];
+        } else {
+          resHeaders['set-cookie'] = siteCookie;
+        }
+      }
+
       res.writeHead(upstreamRes.statusCode, {
-        ...upstreamRes.headers,
+        ...resHeaders,
         'X-Request-Id': requestId,
         'X-Security-Guard-Monitored': 'ACTIVE'
       });
@@ -383,7 +446,9 @@ const server = http.createServer(async (req, res) => {
         status_code: upstreamRes.statusCode,
         response_time_ms: responseTime,
         user_agent: req.headers['user-agent'] || 'unknown',
-        blocked: false
+        blocked: false,
+        headers: req.headers,
+        body: bodySnippet
       });
     });
 
@@ -419,7 +484,12 @@ if (require.main === module) {
     console.log(`  SECURITY GUARD - Monitoring Gateway`);
     console.log(`  Listening on http://${HOST}:${PORT}`);
     console.log(`  Target Web App: ${getWebAppUrl()}`);
-    console.log(`  Default Demo Sites:`);
+    console.log(`  Docker Web Security Labs:`);
+    console.log(`    - owasp_juice_shop -> http://127.0.0.1:4101`);
+    console.log(`    - dvwa             -> http://127.0.0.1:4102`);
+    console.log(`    - owasp_webgoat    -> http://127.0.0.1:4103/WebGoat`);
+    console.log(`    - owasp_webwolf    -> http://127.0.0.1:9091/WebWolf`);
+    console.log(`  Legacy Demo Sites:`);
     console.log(`    - site_demo_node   -> http://127.0.0.1:4001`);
     console.log(`    - site_demo_python -> http://127.0.0.1:4002`);
     console.log('===================================================');

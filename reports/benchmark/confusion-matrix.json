@@ -1,0 +1,20 @@
+{
+  "Method_A_Rule_Based": {
+    "TP": 75,
+    "FP": 0,
+    "TN": 200,
+    "FN": 25
+  },
+  "Method_B_ML_Isolation_Forest": {
+    "TP": 47,
+    "FP": 1,
+    "TN": 199,
+    "FN": 53
+  },
+  "Method_C_Adaptive_Hybrid": {
+    "TP": 81,
+    "FP": 0,
+    "TN": 200,
+    "FN": 19
+  }
+}

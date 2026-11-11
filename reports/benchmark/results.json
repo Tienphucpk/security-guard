@@ -1,0 +1,152 @@
+{
+  "benchmark_timestamp": "2026-11-04T14:15:14Z",
+  "dataset": {
+    "source": "datasets/benchmark/test.jsonl",
+    "total_samples": 300,
+    "benign_samples": 200,
+    "attack_samples": 100
+  },
+  "methods": {
+    "Method_A_Rule_Based_Only": {
+      "confusion_matrix": {
+        "TP": 75,
+        "FP": 0,
+        "TN": 200,
+        "FN": 25
+      },
+      "accuracy": 91.67,
+      "precision": 100.0,
+      "recall": 75.0,
+      "specificity": 100.0,
+      "f1_score": 85.71,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 25.0,
+      "latency_mean_ms": 0.036,
+      "latency_p95_ms": 0.066,
+      "latency_p99_ms": 0.197,
+      "throughput_req_per_sec": 28123.1
+    },
+    "Method_B_ML_Only_Isolation_Forest": {
+      "confusion_matrix": {
+        "TP": 47,
+        "FP": 1,
+        "TN": 199,
+        "FN": 53
+      },
+      "accuracy": 82.0,
+      "precision": 97.92,
+      "recall": 47.0,
+      "specificity": 99.5,
+      "f1_score": 63.51,
+      "false_positive_rate": 0.5,
+      "false_negative_rate": 53.0,
+      "latency_mean_ms": 12.795,
+      "latency_p95_ms": 20.359,
+      "latency_p99_ms": 22.992,
+      "throughput_req_per_sec": 78.2
+    },
+    "Method_C_Adaptive_Hybrid": {
+      "confusion_matrix": {
+        "TP": 81,
+        "FP": 0,
+        "TN": 200,
+        "FN": 19
+      },
+      "accuracy": 93.67,
+      "precision": 100.0,
+      "recall": 81.0,
+      "specificity": 100.0,
+      "f1_score": 89.5,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 19.0,
+      "latency_mean_ms": 12.007,
+      "latency_p95_ms": 16.115,
+      "latency_p99_ms": 20.835,
+      "throughput_req_per_sec": 83.3
+    }
+  },
+  "prevention_metrics": {
+    "Total_Attack_Requests": 100,
+    "Total_Benign_Requests": 200,
+    "Successful_Blocks": 78,
+    "False_Blocks": 0,
+    "Blocking_Success_Rate_Percent": 78.0,
+    "False_Blocking_Rate_Percent": 0.0,
+    "Mean_Inspection_Overhead_ms": 12.007,
+    "P95_Inspection_Overhead_ms": 16.115
+  },
+  "vector_breakdown": {
+    "none": {
+      "Total_Requests": 200,
+      "Rule_Detection_Rate": 0.0,
+      "ML_Detection_Rate": 0.5,
+      "Hybrid_Detection_Rate": 0.0,
+      "Active_Block_Rate": 0.0
+    },
+    "path_traversal": {
+      "Total_Requests": 20,
+      "Rule_Detection_Rate": 100.0,
+      "ML_Detection_Rate": 35.0,
+      "Hybrid_Detection_Rate": 100.0,
+      "Active_Block_Rate": 100.0
+    },
+    "sql_injection": {
+      "Total_Requests": 25,
+      "Rule_Detection_Rate": 84.0,
+      "ML_Detection_Rate": 36.0,
+      "Hybrid_Detection_Rate": 84.0,
+      "Active_Block_Rate": 84.0
+    },
+    "command_injection": {
+      "Total_Requests": 15,
+      "Rule_Detection_Rate": 80.0,
+      "ML_Detection_Rate": 26.7,
+      "Hybrid_Detection_Rate": 80.0,
+      "Active_Block_Rate": 80.0
+    },
+    "xss": {
+      "Total_Requests": 25,
+      "Rule_Detection_Rate": 100.0,
+      "ML_Detection_Rate": 64.0,
+      "Hybrid_Detection_Rate": 100.0,
+      "Active_Block_Rate": 100.0
+    },
+    "brute_force": {
+      "Total_Requests": 15,
+      "Rule_Detection_Rate": 20.0,
+      "ML_Detection_Rate": 60.0,
+      "Hybrid_Detection_Rate": 20.0,
+      "Active_Block_Rate": 0.0
+    }
+  },
+  "ablation_study": {
+    "Ablation_1_Rule_Only": {
+      "Description": "Deterministic Rule-Based Detection Only (No ML, No Adaptive Scoring)",
+      "Recall": 75.0,
+      "Precision": 100.0,
+      "F1_Score": 85.71,
+      "FPR": 0.0
+    },
+    "Ablation_2_ML_Only": {
+      "Description": "Isolation Forest Anomaly Detection Only (Unsupervised)",
+      "Recall": 47.0,
+      "Precision": 97.92,
+      "F1_Score": 63.51,
+      "FPR": 0.5
+    },
+    "Ablation_3_Hybrid_Without_Normalization": {
+      "Description": "Rule + ML without recursive normalization (evasion vulnerable)",
+      "Recall": 86.0,
+      "Precision": 98.85,
+      "F1_Score": 91.98,
+      "FPR": 0.5
+    },
+    "Ablation_4_Full_Adaptive_Hybrid": {
+      "Description": "Full System (Normalization + Rules + ML + Adaptive Synergy)",
+      "Recall": 81.0,
+      "Precision": 100.0,
+      "F1_Score": 89.5,
+      "FPR": 0.0
+    }
+  }
+}

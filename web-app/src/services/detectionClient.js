@@ -28,6 +28,97 @@ class DetectionClient {
   }
 
   /**
+   * Embedded fallback rules for when Python engine is offline
+   */
+  evaluateFallbackRules(logEntry = {}) {
+    let decodedUrl = logEntry.url || '';
+    try {
+      decodedUrl = decodeURIComponent(decodedUrl);
+    } catch {}
+    const text = `${logEntry.url || ''} ${decodedUrl} ${logEntry.body || ''}`.replace(/\+/g, ' ').toLowerCase();
+    const userAgent = logEntry.userAgent || logEntry.user_agent || '';
+    const detections = [];
+
+    // 1. SQL Injection
+    if (/union(\s+all)?\s+select|information_schema|waitfor\s+delay|sleep\s*\(|benchmark\s*\(|'\s*or\s*'?1'?\s*=\s*'?1|--|#|\/\*|version\s*\(|select\s+.*from/i.test(text)) {
+      detections.push({
+        type: 'SQL_INJECTION',
+        severity: 'CRITICAL',
+        score: 85,
+        reason: "Matched SQL injection signature in request: ' OR 1=1 or UNION SELECT",
+        rule_id: 'RULE-SQLI-001'
+      });
+    }
+
+    // 2. Cross-Site Scripting (XSS)
+    if (/<script|<\/script>|javascript:|onerror\s*=|onload\s*=|onclick\s*=|document\.cookie|<iframe|<svg/i.test(text)) {
+      detections.push({
+        type: 'XSS',
+        severity: 'HIGH',
+        score: 80,
+        reason: 'Cross-Site Scripting HTML/JS execution tags detected in request parameters',
+        rule_id: 'RULE-XSS-001'
+      });
+    }
+
+    // 3. Path Traversal
+    if (/\.\.[\/\\]|%2e%2e[\/\\]|etc\/(passwd|shadow|hosts)|windows[\/\\]win\.ini|boot\.ini/i.test(text)) {
+      detections.push({
+        type: 'PATH_TRAVERSAL',
+        severity: 'HIGH',
+        score: 80,
+        reason: 'Directory traversal pattern detected: attempts to climb directory hierarchy',
+        rule_id: 'RULE-TRAV-001'
+      });
+    }
+
+    // 4. Command Injection
+    if (/(?:;|\||`|\$\()\s*(?:cat|ls|whoami|id|uname|nc|bash|sh|cmd|powershell)\b/i.test(text)) {
+      detections.push({
+        type: 'COMMAND_INJECTION',
+        severity: 'HIGH',
+        score: 85,
+        reason: 'OS command execution delimiter and system executable identified',
+        rule_id: 'RULE-CMD-001'
+      });
+    }
+
+    // 5. Abnormal User-Agent / Scanner
+    if (/(?:sqlmap|nikto|nmap|acunetix|nessus|masscan)/i.test(userAgent)) {
+      detections.push({
+        type: 'SUSPICIOUS_SCANNER',
+        severity: 'MEDIUM',
+        score: 70,
+        reason: 'Automated vulnerability scanner identified via User-Agent',
+        rule_id: 'RULE-SCAN-001'
+      });
+    }
+
+    if (detections.length > 0) {
+      const maxScore = Math.max(...detections.map(d => d.score));
+      return {
+        detected: true,
+        risk_score: maxScore,
+        severity: maxScore >= 80 ? 'CRITICAL' : (maxScore >= 60 ? 'HIGH' : 'MEDIUM'),
+        detections,
+        status: 'analyzed',
+        is_anomaly: false,
+        ml_result: { model_available: false, is_anomaly: false, anomaly_score: 0 }
+      };
+    }
+
+    return {
+      detected: false,
+      risk_score: 0,
+      severity: 'LOW',
+      detections: [],
+      status: 'analyzed',
+      is_anomaly: false,
+      ml_result: { model_available: false, is_anomaly: false, anomaly_score: 0 }
+    };
+  }
+
+  /**
    * Forward log entry to Detection Engine, analyze result, and generate security alert if detected
    * @param {Object} logEntry 
    * @returns {Promise<Object>}
@@ -66,12 +157,11 @@ class DetectionClient {
 
       return result;
     } catch (err) {
-      // Graceful degradation: never crash or hang if Detection Engine is offline or timed out
-      if (err.name === 'AbortError') {
-        console.warn(`[DETECTION CLIENT] Request timed out after ${this.timeoutMs}ms`);
-      } else {
-        // Engine unreachable or network error
-        // Keep warning quiet to avoid cluttering normal console
+      // Graceful degradation: analyze with fallback rules if Python engine is offline
+      const fallback = this.evaluateFallbackRules(logEntry);
+      if (fallback && fallback.detected) {
+        await this.handleDetectionAlert(logEntry, fallback);
+        return fallback;
       }
       return { status: 'unavailable', detected: false, error: err.message };
     }

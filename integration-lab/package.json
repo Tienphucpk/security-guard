@@ -1,0 +1,10 @@
+{
+  "name": "integration-lab-site",
+  "version": "1.0.0",
+  "description": "Independent Standalone External Web Application for Security Guard Real-World Validation",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "private": true
+}

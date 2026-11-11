@@ -56,14 +56,27 @@ router.post('/monitoring/decision', requireAgentAuth, monitoringController.makeD
 router.post('/ingest/events', requireAgentAuth, monitoringController.ingestEvents);
 router.post('/ingest/logs', requireAgentAuth, monitoringController.ingestLogs);
 
+// Flexible auth: allows either ADMIN/ANALYST session cookie OR Gateway core secret
+const requireUserOrGatewayAuth = (req, res, next) => {
+  const gwSecret = req.headers['x-gateway-secret'];
+  const defaultSecret = process.env.GATEWAY_SHARED_SECRET || 'secguard_gateway_internal_secret_2026';
+  if (gwSecret && gwSecret === defaultSecret) {
+    return next();
+  }
+  return requireAuth(req, res, () => {
+    requireRole(['ADMIN', 'ANALYST'])(req, res, next);
+  });
+};
+
 // Website Registry & Management APIs (RBAC: ADMIN full, ANALYST read-only)
-router.get('/websites', requireAuth, requireRole(['ADMIN', 'ANALYST']), monitoringController.listWebsites);
+router.get('/websites', requireUserOrGatewayAuth, monitoringController.listWebsites);
 router.post('/websites', requireAuth, requireRole(['ADMIN']), monitoringController.registerWebsite);
 router.post('/websites/external', requireAuth, requireRole(['ADMIN']), monitoringController.registerExternalWebsite);
 router.post('/websites/:id/rotate-secret', requireAuth, requireRole(['ADMIN']), monitoringController.rotateSecret);
 router.post('/websites/:id/verify', requireAuth, requireRole(['ADMIN', 'ANALYST']), monitoringController.verifyWebsiteHealth);
 router.patch('/websites/:id', requireAuth, requireRole(['ADMIN']), monitoringController.updateWebsite);
 router.get('/websites/audit', requireAuth, requireRole(['ADMIN', 'ANALYST']), monitoringController.listAudit);
+router.get('/monitoring/evidence', requireAuth, requireRole(['ADMIN', 'ANALYST']), monitoringController.listEvidence);
 router.get('/websites/:id/policies', requireAuth, requireRole(['ADMIN', 'ANALYST']), monitoringController.listPolicies);
 router.post('/websites/:id/policies', requireAuth, requireRole(['ADMIN']), monitoringController.createPolicy);
 router.delete('/websites/:id/policies/:policyId', requireAuth, requireRole(['ADMIN']), monitoringController.deletePolicy);

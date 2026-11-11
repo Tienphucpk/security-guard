@@ -1,0 +1,4 @@
+Method,Accuracy (%),Precision (%),Recall (%),F1-Score (%),Specificity (%),FPR (%),FNR (%),Mean Latency (ms),Throughput (req/s)
+Rule-Based Only,91.67,100.0,75.0,85.71,100.0,0.0,25.0,0.036,28123.1
+ML Only (Isolation Forest),82.0,97.92,47.0,63.51,99.5,0.5,53.0,12.795,78.2
+Adaptive Hybrid (Security Guard),93.67,100.0,81.0,89.5,100.0,0.0,19.0,12.007,83.3
