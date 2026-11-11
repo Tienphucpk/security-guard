@@ -62,6 +62,9 @@ export default function App() {
   const [actionMessage, setActionMessage] = useState(null);
   const [availableWebsites, setAvailableWebsites] = useState([]);
 
+  // Navigation Tab State: 'alerts' (default) | 'websites' | 'defense' | 'all'
+  const [activeTab, setActiveTab] = useState('alerts');
+
   // Fetch available registered websites for filter dropdown
   const fetchWebsitesList = useCallback(async () => {
     try {
@@ -701,14 +704,135 @@ export default function App() {
         </div>
       </section>
 
+      {/* Navigation Tab Bar for Streamlined Management */}
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '0.6rem',
+        marginBottom: '1.75rem',
+        borderBottom: '1px solid #334155',
+        paddingBottom: '0.85rem',
+        alignItems: 'center'
+      }}>
+        <button
+          onClick={() => setActiveTab('alerts')}
+          style={{
+            background: activeTab === 'alerts' ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(15, 23, 42, 0.9))' : 'rgba(15, 23, 42, 0.6)',
+            border: activeTab === 'alerts' ? '1px solid #38bdf8' : '1px solid #334155',
+            color: activeTab === 'alerts' ? '#38bdf8' : '#94a3b8',
+            padding: '0.65rem 1.25rem',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'alerts' ? '600' : '500',
+            fontSize: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'all 0.2s ease',
+            boxShadow: activeTab === 'alerts' ? '0 0 14px rgba(56, 189, 248, 0.25)' : 'none'
+          }}
+        >
+          <span>🚨</span> Quản Lý Cảnh Báo
+          <span style={{
+            background: activeTab === 'alerts' ? '#38bdf8' : '#334155',
+            color: activeTab === 'alerts' ? '#0f172a' : '#cbd5e1',
+            borderRadius: '12px',
+            padding: '0.15rem 0.5rem',
+            fontSize: '0.75rem',
+            fontWeight: 700
+          }}>
+            {alertStats.totalAlerts}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('websites')}
+          style={{
+            background: activeTab === 'websites' ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(15, 23, 42, 0.9))' : 'rgba(15, 23, 42, 0.6)',
+            border: activeTab === 'websites' ? '1px solid #38bdf8' : '1px solid #334155',
+            color: activeTab === 'websites' ? '#38bdf8' : '#94a3b8',
+            padding: '0.65rem 1.25rem',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'websites' ? '600' : '500',
+            fontSize: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'all 0.2s ease',
+            boxShadow: activeTab === 'websites' ? '0 0 14px rgba(56, 189, 248, 0.25)' : 'none'
+          }}
+        >
+          <span>🌐</span> Giám Sát Website (Docker Labs)
+          <span style={{
+            background: activeTab === 'websites' ? '#38bdf8' : '#334155',
+            color: activeTab === 'websites' ? '#0f172a' : '#cbd5e1',
+            borderRadius: '12px',
+            padding: '0.15rem 0.5rem',
+            fontSize: '0.75rem',
+            fontWeight: 700
+          }}>
+            4 Labs
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('defense')}
+          style={{
+            background: activeTab === 'defense' ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(15, 23, 42, 0.9))' : 'rgba(15, 23, 42, 0.6)',
+            border: activeTab === 'defense' ? '1px solid #38bdf8' : '1px solid #334155',
+            color: activeTab === 'defense' ? '#38bdf8' : '#94a3b8',
+            padding: '0.65rem 1.25rem',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'defense' ? '600' : '500',
+            fontSize: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'all 0.2s ease',
+            boxShadow: activeTab === 'defense' ? '0 0 14px rgba(56, 189, 248, 0.25)' : 'none'
+          }}
+        >
+          <span>🛡️</span> Phòng Thủ Thích Ứng & Benchmark
+        </button>
+
+        <button
+          onClick={() => setActiveTab('all')}
+          style={{
+            background: activeTab === 'all' ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(15, 23, 42, 0.9))' : 'rgba(15, 23, 42, 0.6)',
+            border: activeTab === 'all' ? '1px solid #38bdf8' : '1px solid #334155',
+            color: activeTab === 'all' ? '#38bdf8' : '#94a3b8',
+            padding: '0.65rem 1.25rem',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'all' ? '600' : '500',
+            fontSize: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'all 0.2s ease',
+            boxShadow: activeTab === 'all' ? '0 0 14px rgba(56, 189, 248, 0.25)' : 'none'
+          }}
+        >
+          <span>📑</span> Xem Toàn Bộ
+        </button>
+      </div>
+
       {/* Phase 10: Multi-Website Monitoring & Active Enforcement Section */}
-      <WebsiteMonitoringSection currentUser={currentUser} onActionMessage={setActionMessage} />
+      {(activeTab === 'websites' || activeTab === 'all') && (
+        <WebsiteMonitoringSection currentUser={currentUser} onActionMessage={setActionMessage} />
+      )}
 
       {/* Advanced Defense: Adaptive Hybrid Defense & Evidence Aggregation */}
-      <AdaptiveDefenseSection currentUser={currentUser} onActionMessage={setActionMessage} />
+      {(activeTab === 'defense' || activeTab === 'all') && (
+        <AdaptiveDefenseSection currentUser={currentUser} onActionMessage={setActionMessage} />
+      )}
 
       {/* Alert Lifecycle Metrics Section (Phase 4 & 6) */}
-      <section>
+      {(activeTab === 'alerts' || activeTab === 'all') && (
+        <>
+        <section>
         <h2 className="section-title">Alert Lifecycle & Detection Metrics</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
           <div className="card stat-card">
@@ -1109,6 +1233,8 @@ export default function App() {
           )}
         </div>
       </section>
+      </>
+      )}
 
       {/* Alert Details Modal */}
       {selectedAlert && (

@@ -25,10 +25,8 @@ const HOST = process.env.GATEWAY_HOST || '0.0.0.0';
 function getWebAppUrl() { return process.env.WEB_APP_URL || 'http://127.0.0.1:3000'; }
 const GATEWAY_SECRET = process.env.GATEWAY_SHARED_SECRET || 'secguard_gateway_internal_secret_2026';
 
-// Pre-approved demo upstreams and local Docker security labs (SSRF Boundary)
+// Pre-approved Docker security labs (SSRF Boundary)
 const APPROVED_UPSTREAMS = {
-  'site_demo_node': 'http://127.0.0.1:4001',
-  'site_demo_python': 'http://127.0.0.1:4002',
   'owasp_juice_shop': 'http://127.0.0.1:4101',
   'dvwa': 'http://127.0.0.1:4102',
   'owasp_webgoat': 'http://127.0.0.1:4103/WebGoat',
@@ -244,7 +242,7 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({
       error: 'Bad Request',
       message: 'Missing website identifier. Provide header X-Website-Id, Host domain, or use path prefix /site/:website_id/*',
-      hint: 'Available sites: owasp_juice_shop, dvwa, owasp_webgoat, owasp_webwolf, site_demo_node, site_demo_python'
+      hint: 'Available sites: owasp_juice_shop, dvwa, owasp_webgoat, owasp_webwolf'
     }));
   }
 
@@ -254,7 +252,7 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({
       error: 'Not Found',
       message: `Unknown or unapproved website identifier '${websiteId}'`,
-      hint: 'Approved sites: owasp_juice_shop, dvwa, owasp_webgoat, owasp_webwolf, site_demo_node, site_demo_python'
+      hint: 'Approved sites: owasp_juice_shop, dvwa, owasp_webgoat, owasp_webwolf'
     }));
   }
 
@@ -489,9 +487,6 @@ if (require.main === module) {
     console.log(`    - dvwa             -> http://127.0.0.1:4102`);
     console.log(`    - owasp_webgoat    -> http://127.0.0.1:4103/WebGoat`);
     console.log(`    - owasp_webwolf    -> http://127.0.0.1:9091/WebWolf`);
-    console.log(`  Legacy Demo Sites:`);
-    console.log(`    - site_demo_node   -> http://127.0.0.1:4001`);
-    console.log(`    - site_demo_python -> http://127.0.0.1:4002`);
     console.log('===================================================');
   });
 }
