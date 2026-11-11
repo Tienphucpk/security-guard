@@ -411,17 +411,26 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      // If user accesses via /site/:website_id, set secguard_site cookie so SPA subrequests resolve properly
-      if (isPathPrefixRouting) {
-        const existingCookie = resHeaders['set-cookie'];
-        const siteCookie = `secguard_site=${websiteId}; Path=/; SameSite=Lax`;
-        if (Array.isArray(existingCookie)) {
-          resHeaders['set-cookie'] = [...existingCookie, siteCookie];
-        } else if (existingCookie) {
-          resHeaders['set-cookie'] = [existingCookie, siteCookie];
-        } else {
-          resHeaders['set-cookie'] = siteCookie;
+      // Sanitize upstream Set-Cookie headers for reverse proxy compatibility
+      if (resHeaders['set-cookie']) {
+        const rawCookies = Array.isArray(resHeaders['set-cookie'])
+          ? resHeaders['set-cookie']
+          : [resHeaders['set-cookie']];
+
+        const sanitized = rawCookies.map(cookieStr => {
+          // Remove domain attribute so cookie binds to whatever host client uses (localhost or 127.0.0.1)
+          let c = cookieStr.replace(/;\s*domain=[^;]+/gi, '');
+          // Relax SameSite=Strict to SameSite=Lax so cross-subpath /site/:id redirects maintain session
+          c = c.replace(/;\s*SameSite=Strict/gi, '; SameSite=Lax');
+          return c;
+        });
+
+        if (isPathPrefixRouting) {
+          sanitized.push(`secguard_site=${websiteId}; Path=/; SameSite=Lax`);
         }
+        resHeaders['set-cookie'] = sanitized;
+      } else if (isPathPrefixRouting) {
+        resHeaders['set-cookie'] = `secguard_site=${websiteId}; Path=/; SameSite=Lax`;
       }
 
       res.writeHead(upstreamRes.statusCode, {
